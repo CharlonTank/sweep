@@ -133,3 +133,7 @@ Contributions are welcome and greatly appreciated! To get set up, see [Developme
 <p align="center">
     and, of course, Sweep!
 </p>
+
+## Why I forked the repo?
+
+My goal is for sweep to be able to run command in the terminal, like `rails generate migration add_field_to_blabla`
