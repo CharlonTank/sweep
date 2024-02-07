@@ -22,3 +22,33 @@ class TestAPI(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+import pytest
+from fastapi.testclient import TestClient
+from sweepai.terminal_executor import TerminalExecutor
+
+@pytest.fixture
+def client():
+    with TestClient(api.app) as c:
+        yield c
+
+@pytest.fixture
+def mock_terminal_executor(mocker):
+    mocker.patch.object(TerminalExecutor, '_execute_command', return_value="Mocked command execution")
+
+def test_run_migration(client, mock_terminal_executor):
+    response = client.post("/execute/migration", json={"command": "rails db:migrate", "flags": [], "working_directory": "/path/to/project"})
+    assert response.status_code == 200
+    assert response.json() == {"message": "Migration executed successfully.", "result": "Mocked command execution"}
+    mock_terminal_executor.assert_called_once_with("rails db:migrate", [], "/path/to/project")
+
+def test_execute_formatter_or_linter(client, mock_terminal_executor):
+    response = client.post("/execute/formatter_or_linter", json={"command": "rubocop", "flags": ["-a"], "working_directory": "/path/to/project"})
+    assert response.status_code == 200
+    assert response.json() == {"message": "Formatter or linter executed successfully.", "result": "Mocked command execution"}
+    mock_terminal_executor.assert_called_once_with("rubocop", ["-a"], "/path/to/project")
+
+def test_run_test_suite(client, mock_terminal_executor):
+    response = client.post("/execute/test_suite", json={"command": "rspec", "flags": [], "working_directory": "/path/to/project"})
+    assert response.status_code == 200
+    assert response.json() == {"message": "Test suite executed successfully.", "result": "Mocked command execution"}
+    mock_terminal_executor.assert_called_once_with("rspec", [], "/path/to/project")
