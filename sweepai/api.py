@@ -25,6 +25,7 @@ from hatchet_sdk import Context, Hatchet
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from sweepai import health
+from sweepai.terminal_executor import TerminalExecutor
 from sweepai.config.client import (
     DEFAULT_RULES,
     RESTART_SWEEP_BUTTON,
@@ -245,6 +246,18 @@ def call_on_merge(*args, **kwargs):
     thread = threading.Thread(target=on_merge, args=args, kwargs=kwargs)
     thread.start()
 
+
+@app.post("/execute/migration")
+def run_migration(command: str = Body(...), flags: list[str] = Body(...), working_directory: str = Body(...)):
+    executor = TerminalExecutor()
+    result = executor.run_migration(command, flags, working_directory)
+    return {"message": "Migration executed successfully.", "result": result}
+
+@app.post("/execute/formatter_or_linter")
+def execute_formatter_or_linter(command: str = Body(...), flags: list[str] = Body(...), working_directory: str = Body(...)):
+    executor = TerminalExecutor()
+    result = executor.execute_formatter_or_linter(command, flags, working_directory)
+    return {"message": "Formatter or linter executed successfully.", "result": result}
 
 @app.get("/health")
 def redirect_to_health():
