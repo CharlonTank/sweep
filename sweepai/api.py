@@ -46,6 +46,7 @@ from sweepai.config.server import (
     GITHUB_LABEL_NAME,
     IS_SELF_HOSTED,
 )
+from sweepai.utils.terminal_executor import TerminalExecutor
 from sweepai.core.entities import PRChangeRequest
 from sweepai.events import (
     CheckRunCompleted,
