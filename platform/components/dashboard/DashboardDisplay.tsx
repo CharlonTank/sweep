@@ -45,21 +45,27 @@ const versionScript = `timestamp=$(git log -1 --format="%at")
 [[ "$OSTYPE" == "linux-gnu"* ]] && date -d @$timestamp +%y.%m.%d.%H || date -r $timestamp +%y.%m.%d.%H
 `;
 
+enum OutputToggle {
+  Script = "script",
+  LLM = "llm",
+  Terminal = "terminal",
+}
+
 const DashboardDisplay = () => {
   const [streamData, setStreamData] = useState("");
   const [outputToggle, setOutputToggle] = useState("script");
   const [scriptOutput = "" as string, setScriptOutput] = useLocalStorage(
     "scriptOutput",
-    "",
+    ""
   );
   const [repoName, setRepoName] = useLocalStorage("repoName", "");
   const [fileLimit, setFileLimit] = useLocalStorage<number>("fileLimit", 10000);
   const [blockedGlobs, setBlockedGlobs] = useLocalStorage(
     "blockedGlobs",
-    blockedPaths.join(", "),
+    blockedPaths.join(", ")
   );
   const [fileChangeRequests, setFileChangeRequests] = useRecoilState(
-    FileChangeRequestsState,
+    FileChangeRequestsState
   );
   const [currentFileChangeRequestIndex, setCurrentFileChangeRequestIndex] =
     useLocalStorage("currentFileChangeRequestIndex", 0);
@@ -94,7 +100,7 @@ const DashboardDisplay = () => {
       try {
         const fcrIndex = fileChangeRequests.findIndex(
           (fileChangeRequest: FileChangeRequest) =>
-            fcrEqual(fileChangeRequest, fcr),
+            fcrEqual(fileChangeRequest, fcr)
         );
         undefinedCheck(fcrIndex);
         setFileChangeRequests((prev) => {
@@ -111,7 +117,7 @@ const DashboardDisplay = () => {
         console.error("Error in setHideMerge: ", error);
       }
     },
-    [fileChangeRequests],
+    [fileChangeRequests]
   );
 
   const setOldFile = useCallback((newOldFile: string) => {
@@ -154,7 +160,7 @@ const DashboardDisplay = () => {
       const filesAndDirectories = await getFiles(
         repoName,
         blockedGlobs,
-        fileLimit,
+        fileLimit
       );
       let newFiles = filesAndDirectories.sortedFiles;
       let directories = filesAndDirectories.directories;
@@ -174,7 +180,7 @@ const DashboardDisplay = () => {
     const delta = 50; // Define a delta for the inequality check
     if (
       Math.abs(
-        textarea.scrollHeight - textarea.scrollTop - textarea.clientHeight,
+        textarea.scrollHeight - textarea.scrollTop - textarea.clientHeight
       ) < delta
     ) {
       textarea.scrollTop = textarea.scrollHeight;
@@ -211,7 +217,7 @@ const DashboardDisplay = () => {
         metadata.email === "N/A"
           ? metadata.email
           : `${metadata.whoami}@${metadata.hostname}`,
-        metadata,
+        metadata
       );
     })();
   }, [posthog]);
@@ -278,25 +284,30 @@ const DashboardDisplay = () => {
               <div className="flex flex-row items-center">
                 <Label className="mr-2">Toggle outputs:</Label>
                 <Button
-                  className={`mr-2 ${outputToggle === "script" ? "bg-blue-800 hover:bg-blue-900 text-white" : ""}`}
+                  className={`${outputToggle === OutputToggle.Script ? "bg-blue-800 hover:bg-blue-900 text-white" : ""}`}
                   size="sm"
                   variant="secondary"
-                  onClick={() => {
-                    setOutputToggle("script");
-                  }}
+                  onClick={() => setOutputToggle(OutputToggle.Script)}
                 >
                   Validation Output
                 </Button>
                 <Button
-                  className={`${outputToggle === "llm" ? "bg-blue-800 hover:bg-blue-900 text-white" : ""}`}
+                  className={`${outputToggle === OutputToggle.LLM ? "bg-blue-800 hover:bg-blue-900 text-white" : ""}`}
                   size="sm"
                   variant="secondary"
-                  onClick={() => {
-                    setOutputToggle("llm");
-                  }}
+                  onClick={() => setOutputToggle(OutputToggle.LLM)}
                 >
                   Debug Logs
                 </Button>
+                <Button
+                  className={`${outputToggle === OutputToggle.Terminal ? "bg-blue-800 hover:bg-blue-900 text-white" : ""}`}
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setOutputToggle(OutputToggle.Terminal)}
+                >
+                  Terminal Output
+                </Button>
+
                 <div className="grow"></div>
                 <Button
                   className="mr-2"
@@ -310,26 +321,26 @@ const DashboardDisplay = () => {
                       response.contents,
                       fcr,
                       fileChangeRequests,
-                      setFileChangeRequests,
+                      setFileChangeRequests
                     );
                     setOldFileForFCR(
                       response.contents,
                       fcr,
                       fileChangeRequests,
-                      setFileChangeRequests,
+                      setFileChangeRequests
                     );
                     toast.success("File synced from storage!", {
-                      action: { label: "Dismiss", onClick: () => {} },
+                      action: { label: "Dismiss", onClick: () => { } },
                     });
                     setCurrentFileChangeRequestIndex(
-                      currentFileChangeRequestIndex,
+                      currentFileChangeRequestIndex
                     );
                     setHideMerge(true, fcr);
                     setStatusForFCR(
                       "idle",
                       fcr,
                       fileChangeRequests,
-                      setFileChangeRequests,
+                      setFileChangeRequests
                     );
                   }}
                   disabled={
@@ -349,16 +360,16 @@ const DashboardDisplay = () => {
                       fcr.newContents,
                       fcr,
                       fileChangeRequests,
-                      setFileChangeRequests,
+                      setFileChangeRequests
                     );
                     setHideMerge(true, fcr);
                     await writeFile(
                       repoName,
                       fcr.snippet.file,
-                      fcr.newContents,
+                      fcr.newContents
                     );
                     toast.success("Succesfully saved file!", {
-                      action: { label: "Dismiss", onClick: () => {} },
+                      action: { label: "Dismiss", onClick: () => { } },
                     });
                   }}
                   disabled={
@@ -377,15 +388,23 @@ const DashboardDisplay = () => {
                 id="script-output"
                 placeholder="Your script output will be displayed here"
                 readOnly
-                hidden={outputToggle !== "script"}
+                hidden={outputToggle !== OutputToggle.Script}
               ></Textarea>
               <Textarea
-                className={`mt-4 grow font-mono h-4/5`}
+                className="mt-4 grow font-mono h-4/5"
                 id="llm-output"
                 value={streamData}
                 placeholder="ChatGPT's output will be displayed here."
                 readOnly
-                hidden={outputToggle !== "llm"}
+                hidden={outputToggle !== OutputToggle.LLM}
+              ></Textarea>
+              <Textarea
+                className="mt-4 grow font-mono h-4/5"
+                id="terminal-output"
+                value={streamData} // Assuming terminal data is stored here
+                placeholder="Terminal output will be displayed here."
+                readOnly
+                hidden={outputToggle !== OutputToggle.Terminal}
               ></Textarea>
             </ResizablePanel>
           </ResizablePanelGroup>

@@ -43,22 +43,20 @@ export const writeFile = async (
   return object;
 };
 
-const runSingleScript = async (
-  repo: string,
-  filePath: string,
-  script: string,
-) => {
+const runSingleScript = async (repo: string, filePath: string, script: string) => {
   const url = "/api/run";
   const body = {
     repo,
     filePath,
     script,
   };
+  console.log('Sending request to /api/run with body:', body); // Debug statement 1
   const response = await fetch(url, {
     method: "POST",
     body: JSON.stringify(body),
   });
   const object = await response.json();
+  console.log('Received response from /api/run:', object); // Debug statement 2
   return object;
 };
 

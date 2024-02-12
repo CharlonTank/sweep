@@ -239,6 +239,9 @@ dependencies:
   usehooks-ts:
     specifier: ^2.9.5
     version: 2.9.5(react-dom@18.0.0)(react@18.2.0)
+  ws:
+    specifier: ^8.16.0
+    version: 8.16.0
 
 optionalDependencies:
   tree-sitter:
@@ -267,6 +270,9 @@ devDependencies:
   '@babel/preset-env':
     specifier: ^7.23.9
     version: 7.23.9(@babel/core@7.23.9)
+  '@types/ws':
+    specifier: ^8.5.10
+    version: 8.5.10
   cypress:
     specifier: ^13.6.4
     version: 13.6.4
@@ -3557,6 +3563,12 @@ packages:
   /@types/wrap-ansi@3.0.0:
     resolution: {integrity: sha512-ltIpx+kM7g/MLRZfkbL7EsCEjfzCcScLpkg37eXEtx5kmrAKBkTJwd1GIAjDSL8wTpM6Hzn5YO4pSb91BEwu1g==}
     dev: false
+
+  /@types/ws@8.5.10:
+    resolution: {integrity: sha512-vmQSUcfalpIq0R9q7uTo2lXs6eGIpt9wtnLdMv9LVpIjCA/+ufZRozlVoVelIYixx1ugCBKDhn89vnsEGOCx9A==}
+    dependencies:
+      '@types/node': 20.11.16
+    dev: true
 
   /@types/yargs-parser@21.0.3:
     resolution: {integrity: sha512-I4q9QU9MQv4oEOz4tAHJtNz1cwuLxn2F3xcc2iV5WdqLPpUnj30aUuxt1mAxYTG+oe8CZMV/+6rU4S4gRDzqtQ==}

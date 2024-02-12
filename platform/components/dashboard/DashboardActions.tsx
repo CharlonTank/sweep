@@ -231,7 +231,7 @@ const DashboardActions = ({
       }
       toast.success(
         `Successfully fetched ${sortedFiles.length} files from the repository!`,
-        { action: { label: "Dismiss", onClick: () => {} } },
+        { action: { label: "Dismiss", onClick: () => { } } },
       );
       setCurrentRepoName((currentRepoName: string) => {
         setRepoName(currentRepoName);
@@ -241,7 +241,7 @@ const DashboardActions = ({
       console.error(e);
       toast.error("An Error Occured", {
         description: "Please enter a valid repository name.",
-        action: { label: "Dismiss", onClick: () => {} },
+        action: { label: "Dismiss", onClick: () => { } },
       });
     }
   };
@@ -276,7 +276,7 @@ const DashboardActions = ({
             {(response.stderr || "").slice(0, 800)}
           </div>,
         ],
-        action: { label: "Dismiss", onClick: () => {} },
+        action: { label: "Dismiss", onClick: () => { } },
       });
     } else {
       toast.success("The script ran successfully", {
@@ -284,7 +284,7 @@ const DashboardActions = ({
           <div key="stdout">{(response.stdout || "").slice(0, 800)}</div>,
           <div key="stderr">{(response.stderr || "").slice(0, 800)}</div>,
         ],
-        action: { label: "Dismiss", onClick: () => {} },
+        action: { label: "Dismiss", onClick: () => { } },
       });
     }
     setScriptOutput(scriptOutput);
@@ -293,7 +293,7 @@ const DashboardActions = ({
   const checkCode = async (sourceCode: string, filePath: string) => {
     const response = await fetch(
       "/api/files/check?" +
-        new URLSearchParams({ filePath, sourceCode }).toString(),
+      new URLSearchParams({ filePath, sourceCode }).toString(),
     );
     return await response.text();
   };
@@ -536,7 +536,7 @@ const DashboardActions = ({
         setHideMerge(false, fcr);
         const changeLineCount = Math.abs(
           fcr.snippet.entireFile.split("\n").length -
-            globalUpdatedFile.split("\n").length,
+          globalUpdatedFile.split("\n").length,
         );
         const changeCharCount = Math.abs(
           fcr.snippet.entireFile.length - globalUpdatedFile.length,
@@ -545,10 +545,10 @@ const DashboardActions = ({
           console.error("errorMessage in loop", errorMessage);
           toast.error(
             "An error occured while generating your code." +
-              (i < 3 ? " Retrying..." : " Retried 4 times so I will give up."),
+            (i < 3 ? " Retrying..." : " Retried 4 times so I will give up."),
             {
               description: errorMessage.slice(0, 800),
-              action: { label: "Dismiss", onClick: () => {} },
+              action: { label: "Dismiss", onClick: () => { } },
             },
           );
           validationOutput += "\n\n" + errorMessage;
@@ -566,7 +566,7 @@ const DashboardActions = ({
             description: [
               <div key="stdout">{`There were ${changeLineCount} line and ${changeCharCount} character changes made.`}</div>,
             ],
-            action: { label: "Dismiss", onClick: () => {} },
+            action: { label: "Dismiss", onClick: () => { } },
           });
           const newDiff = Diff.createPatch(
             filePath,
@@ -587,7 +587,7 @@ const DashboardActions = ({
         console.error("errorMessage in except block", errorMessage);
         toast.error("An error occured while generating your code.", {
           description: e,
-          action: { label: "Dismiss", onClick: () => {} },
+          action: { label: "Dismiss", onClick: () => { } },
         });
         if (i === maxIterations) {
           setIsLoading(false, fcr, fileChangeRequests, setFileChangeRequests);
@@ -630,7 +630,7 @@ const DashboardActions = ({
       await writeFile(repoName, fcr.snippet.file, fcr.newContents);
     }
     toast.success(`Succesfully saved ${fcrs.length} files!`, {
-      action: { label: "Dismiss", onClick: () => {} },
+      action: { label: "Dismiss", onClick: () => { } },
     });
   };
 
