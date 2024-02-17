@@ -6,7 +6,11 @@ import CodeMirror, {
   keymap,
   lineNumbers,
 } from "@uiw/react-codemirror";
-import { FileChangeRequest, Snippet } from "../../lib/types";
+import {
+  OperationRequest,
+  Snippet,
+  operationTypeToString,
+} from "../../lib/types";
 import { Button } from "../ui/button";
 import { indentWithTab } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
@@ -22,7 +26,7 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { toast } from "sonner";
 import { useRecoilState } from "recoil";
-import { FileChangeRequestsState } from "../../state/fcrAtoms";
+import { OperationRequestsState } from "../../state/fcrAtoms";
 
 const codeStyle = {
   ...vscDarkPlus,
@@ -39,7 +43,6 @@ const userMessagePromptOld = `Here are relevant read-only files:
 {readOnlyFiles}
 </read_only_files>
 
-Here is the user's request:
 <user_request>
 {userRequest}
 </user_request>
@@ -53,7 +56,6 @@ Provide a plan to solve the issue, following these rules:
 * Use natural language instructions on what to modify regarding business logic.
 * Be concrete with instructions and do not write "identify x" or "ensure y is done". Instead write "add x" or "change y to z".
 * Refer to the user as "you".
-
 You MUST follow the following format with XML tags:
 
 # Contextual Request Analysis:
@@ -89,6 +91,11 @@ Here is the user's request:
 {userRequest}
 </user_request>
 
+Here is the user's workflow:
+<user_workflow>
+{userWorkflow}
+</user_workflow>
+
 # Task:
 Analyze the snippets, repo, and user request to break down the requested change and propose a plan to addresses the user's request. Mention all changes required to solve the request.
 
@@ -97,6 +104,7 @@ Provide a plan to solve the issue, following these rules:
 * Include the full path (e.g. src/main.py and not just main.py), using the snippets for reference.
 * Use natural language instructions on what to modify regarding business logic.
 * Be concrete with instructions and do not write "identify x" or "ensure y is done". Instead write "add x" or "change y to z".
+* You may run a terminal command from the list of commands provided in the workflow.
 * Refer to the user as "you".
 
 # Plan:
@@ -115,18 +123,19 @@ Provide a plan to solve the issue, following these rules:
 </modify>
 ...
 
+<command name="command_name">
+* Concise natural language instructions for running the command.
+...
+</command>
+
 </plan>`;
 
 const readOnlyFileFormat = `<read_only_file file="{file}" start_line="{start_line}" end_line="{end_line}">
 {contents}
 </read_only_file>`;
 
-const fileChangeRequestPattern =
-  /<create file="(?<cFile>.*?)" relevant_files="(?<relevant_files>.*?)">(?<cInstructions>[\s\S]*?)($|<\/create>)|<modify file="(?<mFile>.*?)" start_line="(?<startLine>.*?)" end_line="(?<endLine>.*?)" relevant_files="(.*?)">(?<mInstructions>[\s\S]*?)($|<\/modify>)/gs;
-
-const capitalize = (s: string) => {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-};
+const requestPattern =
+  /<create file="(?<cFile>.*?)" relevant_files="(?<relevant_files>.*?)">(?<cInstructions>[\s\S]*?)($|<\/create>)|<modify file="(?<mFile>.*?)" start_line="(?<startLine>.*?)" end_line="(?<endLine>.*?)" relevant_files="(.*?)">(?<mInstructions>[\s\S]*?)($|<\/modify>)|<command name="(?<cmdName>.*?)">/gs;
 
 const DashboardPlanning = ({
   repoName,
@@ -141,23 +150,25 @@ const DashboardPlanning = ({
 }) => {
   const [instructions = "", setInstructions] = useLocalStorage(
     "globalInstructions",
-    "" as string,
+    "" as string
+  );
+  const [workflow = "", setWorkflow] = useLocalStorage(
+    "globalWorkflow",
+    "" as string
   );
   const [snippets = {}, setSnippets] = useLocalStorage(
     "globalSnippets",
-    {} as { [key: string]: Snippet },
+    {} as { [key: string]: Snippet }
   );
   const [rawResponse = "", setRawResponse] = useLocalStorage(
     "planningRawResponse",
-    "" as string,
+    "" as string
   );
-  const [currentFileChangeRequests = [], setCurrentFileChangeRequests] =
-    useLocalStorage("globalFileChangeRequests", [] as FileChangeRequest[]);
+  const [currentOperationRequests = [], setCurrentFileChangeRequests] =
+    useLocalStorage("globalFileChangeRequests", [] as OperationRequest[]);
   const [debugLogToggle = false, setDebugLogToggle] = useState<boolean>(false);
   const [isLoading = false, setIsLoading] = useState<boolean>(false);
-  const [fileChangeRequests, setFileChangeRequests] = useRecoilState(
-    FileChangeRequestsState,
-  );
+  const [_, setOperationRequests] = useRecoilState(OperationRequestsState);
 
   const instructionsRef = useRef<HTMLTextAreaElement>(null);
   const thoughtsRef = useRef<HTMLDivElement>(null);
@@ -197,12 +208,12 @@ const DashboardPlanning = ({
                     .replace("{file}", snippets[filePath].file)
                     .replace(
                       "{start_line}",
-                      snippets[filePath].start.toString(),
+                      snippets[filePath].start.toString()
                     )
                     .replace("{end_line}", snippets[filePath].end.toString())
-                    .replace("{contents}", snippets[filePath].content),
+                    .replace("{contents}", snippets[filePath].content)
                 )
-                .join("\n"),
+                .join("\n")
             ),
           systemMessagePrompt,
         }),
@@ -222,55 +233,67 @@ const DashboardPlanning = ({
         if (thoughtsRef.current) {
           thoughtsRef.current.scrollTop = thoughtsRef.current.scrollHeight || 0;
         }
-        const fileChangeRequestMatches = rawText.matchAll(
-          fileChangeRequestPattern,
-        );
-        var fileChangeRequests = [];
-        for (const match of fileChangeRequestMatches) {
-          const file: string = match.groups?.cFile || match.groups?.mFile || "";
-          const relevantFiles: string = match.groups?.relevant_files || "";
-          const instructions: string =
-            match.groups?.cInstructions || match.groups?.mInstructions || "";
-          const changeType: "create" | "modify" = match.groups?.cInstructions
-            ? "create"
-            : "modify";
-          const contents: string =
-            (await getFile(repoName, file)).contents || "";
-          const startLine: string | undefined = match.groups?.startLine;
-          const start: number =
-            startLine === undefined ? 0 : parseInt(startLine);
-          const endLine: string | undefined = match.groups?.endLine;
-          const end: number = Math.max(
-            endLine === undefined
-              ? contents.split("\n").length
-              : parseInt(endLine),
-            start + 10,
-          );
-          fileChangeRequests.push({
-            snippet: {
-              start,
-              end,
-              file: file,
-              entireFile: contents,
-              content: contents.split("\n").slice(start, end).join("\n"),
-            },
-            newContents: contents,
-            changeType,
-            hideMerge: true,
-            instructions: instructions.trim(),
-            isLoading: false,
-            readOnlySnippets: {},
-            status: "idle",
-          } as FileChangeRequest);
+        const requestPatterns =
+          /<create file="(?<cFile>.*?)" relevant_files="(?<relevant_files>.*?)">(?<cInstructions>[\s\S]*?)($|<\/create>)|<modify file="(?<mFile>.*?)" start_line="(?<startLine>.*?)" end_line="(?<endLine>.*?)" relevant_files="(.*?)">(?<mInstructions>[\s\S]*?)($|<\/modify>)|<command name="(?<cmdName>.*?)">/gs;
+        const requestMatches = rawText.matchAll(requestPatterns);
+        var operationRequests: OperationRequest[] = [];
+        for (const match of requestMatches) {
+          if (match.groups?.cmdName) {
+            operationRequests.push({
+              operationType: "command",
+              instructions: instructions.trim(),
+              isLoading: false,
+              status: "idle",
+            } as OperationRequest);
+            console.log("Received command:", match.groups.cmdName);
+          } else {
+            const file: string =
+              match.groups?.cFile || match.groups?.mFile || "";
+            const relevantFiles: string = match.groups?.relevant_files || "";
+            const instructions: string =
+              match.groups?.cInstructions || match.groups?.mInstructions || "";
+            const operationType: "create" | "modify" = match.groups
+              ?.cInstructions
+              ? "create"
+              : "modify";
+            const contents: string =
+              (await getFile(repoName, file)).contents || "";
+            const startLine: string | undefined = match.groups?.startLine;
+            const start: number =
+              startLine === undefined ? 0 : parseInt(startLine);
+            const endLine: string | undefined = match.groups?.endLine;
+            const end: number = Math.max(
+              endLine === undefined
+                ? contents.split("\n").length
+                : parseInt(endLine),
+              start + 10
+            );
+            operationRequests.push({
+              snippet: {
+                start,
+                end,
+                file: file,
+                entireFile: contents,
+                content: contents.split("\n").slice(start, end).join("\n"),
+              },
+              newContents: contents,
+              operationType: operationType,
+              hideMerge: true,
+              instructions: instructions.trim(),
+              isLoading: false,
+              readOnlySnippets: {},
+              status: "idle",
+            } as OperationRequest);
+          }
         }
-        setCurrentFileChangeRequests(fileChangeRequests);
+        setCurrentFileChangeRequests(operationRequests);
         if (planRef.current) {
           const delta = 50; // Define a delta for the inequality check
           if (
             Math.abs(
               planRef.current.scrollHeight -
                 planRef.current.scrollTop -
-                planRef.current.clientHeight,
+                planRef.current.clientHeight
             ) < delta
           ) {
             planRef.current.scrollTop = planRef.current.scrollHeight || 0;
@@ -291,7 +314,7 @@ const DashboardPlanning = ({
     search: string,
     highlightedDisplay: ReactNode,
     index: number,
-    focused: boolean,
+    focused: boolean
   ) => {
     const maxLength = 50;
     const suggestedFileName =
@@ -300,7 +323,7 @@ const DashboardPlanning = ({
         : "..." +
           suggestion.display!.slice(
             suggestion.display!.length - maxLength,
-            suggestion.display!.length,
+            suggestion.display!.length
           );
     if (index > 10) {
       return null;
@@ -387,6 +410,22 @@ const DashboardPlanning = ({
           No files added yet. Type @ to add a file.
         </div>
       )}
+      <div className="flex flex-row justify-between items-center mb-2">
+        <Label className="mr-2">Workflow</Label>
+      </div>
+      <textarea
+        className="min-h-[100px] w-full rounded-md border border-input bg-background mb-2"
+        placeholder="Describe the workflow here."
+        value={workflow}
+        onKeyDown={(e: any) => {
+          if (e.key === "Enter" && e.ctrlKey) {
+            e.preventDefault();
+            generatePlan();
+          }
+        }}
+        onChange={(e: any) => setWorkflow(e.target.value)}
+        onBlur={(e: any) => setWorkflow(e.target.value)}
+      />
       <div className="text-right mb-2">
         <Button
           className="mb-2 mt-2"
@@ -418,7 +457,6 @@ const DashboardPlanning = ({
           <CodeMirror
             value={rawResponse}
             extensions={extensions}
-            // onChange={onChange}
             theme={vscodeDark}
             style={{ overflow: "auto" }}
             placeholder="Empty file"
@@ -426,88 +464,126 @@ const DashboardPlanning = ({
           />
         ) : (
           <>
-            {currentFileChangeRequests.map((fileChangeRequest, index) => {
-              const filePath = fileChangeRequest.snippet.file;
-              var path = filePath.split("/");
-              const fileName = path.pop();
-              if (path.length > 2) {
-                path = path.slice(0, 1).concat(["..."]);
-              }
-              return (
-                <div className="rounded border p-3 mb-2" key={index}>
-                  <div className="flex flex-row justify-between mb-2 p-2">
-                    {fileChangeRequest.changeType === "create" ? (
+            {currentOperationRequests.map((operationRequest, index) => {
+              if (operationRequest.operationType === "command") {
+                return (
+                  <div className="rounded border p-3 mb-2" key={index}>
+                    <div className="flex flex-row justify-between mb-2 p-2">
                       <div className="font-mono">
-                        <span className="text-zinc-400">{path.join("/")}/</span>
-                        <span>{fileName}</span>
-                      </div>
-                    ) : (
-                      <div className="font-mono">
-                        <span className="text-zinc-400">{path.join("/")}/</span>
-                        <span>{fileName}</span>
+                        <span>Command: </span>
                         <span className="text-zinc-400">
-                          :{fileChangeRequest.snippet.start}-
-                          {fileChangeRequest.snippet.end}
+                          {operationRequest.commandName}
                         </span>
                       </div>
-                    )}
-                    <span className="font-mono text-zinc-400">
-                      {capitalize(fileChangeRequest.changeType)}
-                    </span>
+                      <span className="font-mono text-zinc-400">Command</span>
+                    </div>
+                    <Markdown
+                      className="react-markdown mb-2"
+                      components={{
+                        code(props) {
+                          const { children, className, node, ...rest } = props;
+                          const match = /language-(\w+)/.exec(className || "");
+                          return match ? (
+                            // @ts-ignore
+                            <SyntaxHighlighter
+                              {...rest}
+                              PreTag="div"
+                              language={match[1]}
+                              style={codeStyle}
+                            >
+                              {String(children).replace(/\n$/, "")}
+                            </SyntaxHighlighter>
+                          ) : (
+                            <code {...rest} className={className}>
+                              {children}
+                            </code>
+                          );
+                        },
+                      }}
+                    >
+                      {operationRequest.instructions}
+                    </Markdown>
                   </div>
-                  <Markdown
-                    className="react-markdown mb-2"
-                    components={{
-                      code(props) {
-                        const { children, className, node, ...rest } = props;
-                        const match = /language-(\w+)/.exec(className || "");
-                        return match ? (
-                          // @ts-ignore
-                          <SyntaxHighlighter
-                            {...rest}
-                            PreTag="div"
-                            language={match[1]}
-                            style={codeStyle}
-                          >
-                            {String(children).replace(/\n$/, "")}
-                          </SyntaxHighlighter>
-                        ) : (
-                          <code {...rest} className={className}>
-                            {children}
-                          </code>
-                        );
-                      },
-                    }}
-                  >
-                    {fileChangeRequest.instructions}
-                  </Markdown>
-                  {fileChangeRequest.changeType === "modify" && (
-                    <>
-                      <Label>Snippet Preview</Label>
-                      <CodeMirror
-                        value={fileChangeRequest.snippet.content}
-                        extensions={[
-                          ...extensions,
-                          lineNumbers({
-                            formatNumber: (num: number) => {
-                              return (
-                                num + fileChangeRequest.snippet.start
-                              ).toString();
-                            },
-                          }),
-                        ]}
-                        theme={vscodeDark}
-                        style={{ overflow: "auto" }}
-                        placeholder={"No plan generated yet."}
-                        className="ph-no-capture"
-                        maxHeight="150px"
-                      />
-                    </>
-                  )}
-                </div>
-              );
+                );
+              } else {
+                // Handle file creation and modification as before
+                const filePath = operationRequest.snippet.file;
+                var path = filePath.split("/");
+                const fileName = path.pop();
+                if (path.length > 2) {
+                  path = path.slice(0, 1).concat(["..."]);
+                }
+                return (
+                  <div className="rounded border p-3 mb-2" key={index}>
+                    <div className="flex flex-row justify-between mb-2 p-2">
+                      <div className="font-mono">
+                        <span className="text-zinc-400">{path.join("/")}/</span>
+                        <span>{fileName}</span>
+                        {operationRequest.operationType === "modify" && (
+                          <span className="text-zinc-400">
+                            :{operationRequest.snippet.start}-
+                            {operationRequest.snippet.end}
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-mono text-zinc-400">
+                        {operationTypeToString(operationRequest.operationType)}
+                      </span>
+                    </div>
+                    <Markdown
+                      className="react-markdown mb-2"
+                      components={{
+                        code(props) {
+                          const { children, className, node, ...rest } = props;
+                          const match = /language-(\w+)/.exec(className || "");
+                          return match ? (
+                            // @ts-ignore
+                            <SyntaxHighlighter
+                              {...rest}
+                              PreTag="div"
+                              language={match[1]}
+                              style={codeStyle}
+                            >
+                              {String(children).replace(/\n$/, "")}
+                            </SyntaxHighlighter>
+                          ) : (
+                            <code {...rest} className={className}>
+                              {children}
+                            </code>
+                          );
+                        },
+                      }}
+                    >
+                      {operationRequest.instructions}
+                    </Markdown>
+                    {operationRequest.operationType === "modify" && (
+                      <>
+                        <Label>Snippet Preview</Label>
+                        <CodeMirror
+                          value={operationRequest.snippet.content}
+                          extensions={[
+                            ...extensions,
+                            lineNumbers({
+                              formatNumber: (num: number) => {
+                                return (
+                                  num + operationRequest.snippet.start
+                                ).toString();
+                              },
+                            }),
+                          ]}
+                          theme={vscodeDark}
+                          style={{ overflow: "auto" }}
+                          placeholder={"No plan generated yet."}
+                          className="ph-no-capture"
+                          maxHeight="150px"
+                        />
+                      </>
+                    )}
+                  </div>
+                );
+              }
             })}
-            {currentFileChangeRequests.length === 0 && (
+            {currentOperationRequests.length === 0 && (
               <div className="text-zinc-500">No plan generated yet.</div>
             )}
           </>
@@ -519,8 +595,8 @@ const DashboardPlanning = ({
           variant="secondary"
           className="bg-blue-800 hover:bg-blue-900 mt-4"
           onClick={async (e) => {
-            setFileChangeRequests((prev: FileChangeRequest[]) => {
-              return [...prev, ...currentFileChangeRequests];
+            setOperationRequests((prev: OperationRequest[]) => {
+              return [...prev, ...currentOperationRequests];
             });
             setCurrentTab("coding");
           }}

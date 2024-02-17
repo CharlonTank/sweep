@@ -1,3 +1,5 @@
+import { match } from 'ts-pattern';
+
 interface File {
   name: string;
   path: string;
@@ -14,25 +16,52 @@ interface Snippet {
   content: string;
 }
 
-interface FileChangeRequest {
-  snippet: Snippet;
+type OperationType = "create" | "modify" | "command";
+type Status = "queued" | "in-progress" | "done" | "error" | "idle";
+
+// interface OperationRequest {
+//   instructions: string;
+//   hideMerge: boolean;
+//   isLoading: boolean;
+//   status: Status;
+//   newContents: string;
+//   diff: string;
+//   readOnlySnippets: { [key: string]: Snippet };
+//   operationType: "create" | "modify" | "command";
+//   snippet: Snippet;
+//   commandName: string;
+// }
+
+interface BaseOperationRequest {
   instructions: string;
-  newContents: string;
-  changeType: "create" | "modify";
   hideMerge: boolean;
   isLoading: boolean;
-  readOnlySnippets: { [key: string]: Snippet };
-  diff: string;
-  status: "queued" | "in-progress" | "done" | "error" | "idle";
+  status: Status;
 }
 
-const fcrEqual = (a: FileChangeRequest, b: FileChangeRequest) => {
-  return (
-    a.snippet.file === b.snippet.file &&
-    a.snippet.start === b.snippet.start &&
-    a.snippet.end === b.snippet.end
-  );
-};
+interface CreateOrModifyOperationRequest extends BaseOperationRequest {
+  newContents: string;
+  diff: string;
+  readOnlySnippets: { [key: string]: Snippet };
+  operationType: "create" | "modify";
+  snippet: Snippet;
+}
+
+interface CommandOperationRequest extends BaseOperationRequest {
+  operationType: "command";
+  commandName: string;
+}
+
+type OperationRequest = CreateOrModifyOperationRequest | CommandOperationRequest;
+
+function operationTypeToString(operationType: OperationType): string {
+  return match(operationType)
+    .with("create", () => "Create")
+    .with("modify", () => "Modify")
+    .with("command", () => "Command")
+    .exhaustive();
+}
+
 
 const snippetKey = (snippet: Snippet) => {
   return `${snippet.file}:${snippet.start || 0}-${snippet.end || 0}`;
@@ -43,5 +72,5 @@ interface Message {
   content: string;
 }
 
-export { fcrEqual, snippetKey };
-export type { File, Snippet, FileChangeRequest, Message };
+export { snippetKey, operationTypeToString };
+export type { File, Snippet, OperationRequest, CreateOrModifyOperationRequest, CommandOperationRequest, Message };

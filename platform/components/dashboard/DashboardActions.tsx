@@ -14,7 +14,11 @@ import { CaretSortIcon } from "@radix-ui/react-icons";
 import { Collapsible, CollapsibleContent } from "../ui/collapsible";
 import { Snippet } from "../../lib/search";
 import DashboardInstructions from "./DashboardInstructions";
-import { FileChangeRequest, Message, fcrEqual } from "../../lib/types";
+import {
+  CreateOrModifyOperationRequest,
+  Message,
+  OperationRequest,
+} from "../../lib/types";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -31,7 +35,7 @@ import { Dialog, DialogContent } from "../ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import DashboardPlanning from "./DashboardPlanning";
 import { useRecoilState } from "recoil";
-import { FileChangeRequestsState } from "../../state/fcrAtoms";
+import { OperationRequestsState } from "../../state/fcrAtoms";
 import {
   parseRegexFromOpenAICreate,
   parseRegexFromOpenAIModify,
@@ -43,6 +47,7 @@ import {
   setStatusForFCR,
   setDiffForFCR,
 } from "../../state/fcrStateHelpers";
+import { match } from "ts-pattern";
 
 const Diff = require("diff");
 
@@ -120,7 +125,7 @@ const formatUserMessage = (
   fileContents: string,
   snippets: Snippet[],
   patches: string,
-  changeType: string,
+  changeType: string
 ) => {
   const patchesSection =
     patches.trim().length > 0
@@ -143,9 +148,9 @@ const formatUserMessage = (
               .replace("{file}", snippet.file)
               .replace("{start_line}", snippet.start.toString())
               .replace("{end_line}", snippet.end.toString())
-              .replace("{contents}", snippet.content),
+              .replace("{contents}", snippet.content)
           )
-          .join("\n"),
+          .join("\n")
       );
   return userMessage;
 };
@@ -178,7 +183,10 @@ const DashboardActions = ({
   blockedGlobs: string;
   setBlockedGlobs: React.Dispatch<React.SetStateAction<string>>;
   hideMerge: boolean;
-  setHideMerge: (newHideMerge: boolean, fcr: FileChangeRequest) => void;
+  setHideMerge: (
+    newHideMerge: boolean,
+    fcr: CreateOrModifyOperationRequest
+  ) => void;
   repoName: string;
   setRepoName: React.Dispatch<React.SetStateAction<string>>;
   setStreamData: React.Dispatch<React.SetStateAction<string>>;
@@ -192,21 +200,21 @@ const DashboardActions = ({
   setLoadingMessage: React.Dispatch<React.SetStateAction<string>>;
 }) => {
   const [fileChangeRequests, setFileChangeRequests] = useRecoilState(
-    FileChangeRequestsState,
+    OperationRequestsState
   );
   const posthog = usePostHog();
   const validationScriptPlaceholder = `Example: python3 -m py_compile $FILE_PATH\npython3 -m pylint $FILE_PATH --error-only`;
   const testScriptPlaceholder = `Example: python3 -m pytest $FILE_PATH`;
   const [validationScript, setValidationScript] = useLocalStorage(
     "validationScript",
-    "",
+    ""
   );
   const [testScript, setTestScript] = useLocalStorage("testScript", "");
   const [currentRepoName, setCurrentRepoName] = useState(repoName);
   const [currentBlockedGlobs, setCurrentBlockedGlobs] = useState(blockedGlobs);
   const [repoNameCollapsibleOpen, setRepoNameCollapsibleOpen] = useLocalStorage(
     "repoNameCollapsibleOpen",
-    false,
+    false
   );
   const [validationScriptCollapsibleOpen, setValidationScriptCollapsibleOpen] =
     useLocalStorage("validationScriptCollapsibleOpen", false);
@@ -216,7 +224,7 @@ const DashboardActions = ({
 
   const [currentTab = "coding", setCurrentTab] = useLocalStorage(
     "currentTab",
-    "planning" as "planning" | "coding",
+    "planning" as "planning" | "coding"
   );
 
   const refreshFiles = async () => {
@@ -224,14 +232,14 @@ const DashboardActions = ({
       let { directories, sortedFiles } = await getFiles(
         currentRepoName,
         blockedGlobs,
-        fileLimit,
+        fileLimit
       );
       if (sortedFiles.length === 0) {
         throw new Error("No files found in the repository");
       }
       toast.success(
         `Successfully fetched ${sortedFiles.length} files from the repository!`,
-        { action: { label: "Dismiss", onClick: () => {} } },
+        { action: { label: "Dismiss", onClick: () => {} } }
       );
       setCurrentRepoName((currentRepoName: string) => {
         setRepoName(currentRepoName);
@@ -261,7 +269,7 @@ const DashboardActions = ({
       repoName,
       filePath,
       validationScript + "\n" + testScript,
-      newFile,
+      newFile
     );
     const { code } = response;
     let scriptOutput = response.stdout + "\n" + response.stderr;
@@ -293,7 +301,7 @@ const DashboardActions = ({
   const checkCode = async (sourceCode: string, filePath: string) => {
     const response = await fetch(
       "/api/files/check?" +
-        new URLSearchParams({ filePath, sourceCode }).toString(),
+        new URLSearchParams({ filePath, sourceCode }).toString()
     );
     return await response.text();
   };
@@ -301,7 +309,7 @@ const DashboardActions = ({
   const checkForErrors = async (
     filePath: string,
     oldFile: string,
-    newFile: string,
+    newFile: string
   ) => {
     setLoadingMessage("Validating...");
     if (!doValidate) {
@@ -316,343 +324,358 @@ const DashboardActions = ({
       repoName,
       filePath,
       validationScript,
-      oldFile,
+      oldFile
     );
     var { stdout, stderr, code } = await runScript(
       repoName,
       filePath,
       validationScript,
-      newFile,
+      newFile
     );
     // TODO: add diff
     setScriptOutput(stdout + "\n" + stderr);
     return code !== 0 ? stdout + "\n" + stderr : "";
   };
-
-  // modify an existing file or create a new file
-  const getFileChanges = async (fcr: FileChangeRequest, index: number) => {
-    console.log("getting file changes")
-    var validationOutput = "";
-    const patches = fileChangeRequests
-      .slice(0, index)
-      .map((fcr: FileChangeRequest) => {
-        return fcr.diff;
+  const runRequest = async (fcr: OperationRequest, index: number) => {
+    match(fcr)
+      .with({ operationType: "create" }, (fileCreateRequest) => {
+        console.log("creating file");
       })
-      .join("\n\n");
-
-    setIsLoading(true, fcr, fileChangeRequests, setFileChangeRequests);
-    setStatusForFCR(
-      "in-progress",
-      fcr,
-      fileChangeRequests,
-      setFileChangeRequests,
-    );
-    setOutputToggle("llm");
-    setLoadingMessage("Queued...");
-    const changeType = fcr.changeType;
-    // by default we modify file
-    let url = "/api/openai/edit";
-    let prompt = fcr.instructions;
-    if (changeType === "create") {
-      url = "/api/openai/create";
-      prompt = systemMessagePromptCreate
-        .replace("{instructions}", fcr.instructions)
-        .replace("{filename}", fcr.snippet.file);
-    }
-
-    const body = {
-      prompt: prompt,
-      snippets: Object.values(fcr.readOnlySnippets),
-    };
-    const additionalMessages: Message[] = [];
-    var currentIterationContents = (fcr.snippet.entireFile || "").replace(
-      /\\n/g,
-      "\\n",
-    );
-    let errorMessage = "";
-    let userMessage = formatUserMessage(
-      fcr.instructions,
-      currentIterationContents,
-      Object.values(fcr.readOnlySnippets),
-      patches,
-      changeType,
-    );
-
-    if (changeType === "create") {
-      userMessage =
-        systemMessagePromptCreate
-          .replace("{instructions}", fcr.instructions)
-          .replace("{filename}", fcr.snippet.file) + userMessage;
-    }
-
-    isRunningRef.current = true;
-    setScriptOutput(validationOutput);
-    setStreamData("");
-    if (!hideMerge) {
-      setFileChangeRequests((prev: FileChangeRequest[]) => {
-        setHideMerge(true, fcr);
-        setFileForFCR(
-          prev[index].snippet.entireFile,
-          fcr,
-          fileChangeRequests,
-          setFileChangeRequests,
-        );
-        return prev;
-      });
-    }
-    const maxIterations = 3;
-    for (let i = 0; i <= maxIterations; i++) {
-      if (!isRunningRef.current) {
-        setIsLoading(false, fcr, fileChangeRequests, setFileChangeRequests);
-        return;
-      }
-      if (i !== 0) {
-        var retryMessage = "";
-        if (fcr.snippet.entireFile === currentIterationContents) {
-          retryMessage = retryChangesMadePrompt.replace(
-            "{changes_made}",
-            createPatch(
-              fcr.snippet.file,
-              fcr.snippet.entireFile,
-              currentIterationContents,
-            ),
-          );
-        } else {
-          retryMessage = retryPrompt;
-        }
-        retryMessage = retryMessage.replace(
-          "{error_message}",
-          errorMessage.trim(),
-        );
-        userMessage = retryMessage;
-      }
-      setLoadingMessage("Queued...");
-      const response = await fetch(url, {
-        method: "POST",
-        body: JSON.stringify({
-          ...body,
-          fileContents: currentIterationContents,
-          additionalMessages,
-          userMessage,
-        }),
-      });
-      setLoadingMessage("Generating code...");
-      additionalMessages.push({ role: "user", content: userMessage });
-      errorMessage = "";
-      var currentContents = currentIterationContents;
-      const updateIfChanged = (newContents: string) => {
-        if (newContents !== currentIterationContents) {
-          setFileForFCR(
-            newContents,
-            fcr,
-            fileChangeRequests,
-            setFileChangeRequests,
-          );
-          currentContents = newContents;
-        }
-      };
-      try {
-        const reader = response.body!.getReader();
-        const decoder = new TextDecoder("utf-8");
-        let rawText = String.raw``;
-
-        setHideMerge(false, fcr);
-        var j = 0;
-        let globalUpdatedFile = ""; // this is really jank and bad but a quick fix because of the async nature of setters in react
-        while (isRunningRef.current) {
-          var { done, value } = await reader?.read();
-          if (done) {
-            let updatedFile = "";
-            let patchingErrors = "";
-            if (changeType == "modify") {
-              let [newUpdatedFile, newPatchingErrors] =
-                parseRegexFromOpenAIModify(
-                  rawText || "",
-                  currentIterationContents,
-                );
-              updatedFile = newUpdatedFile;
-              patchingErrors = newPatchingErrors;
-            } else if (changeType == "create") {
-              let [newUpdatedFile, newPatchingErrors] =
-                parseRegexFromOpenAICreate(
-                  rawText || "",
-                  currentIterationContents,
-                );
-              updatedFile = newUpdatedFile;
-              patchingErrors = newPatchingErrors;
-            }
-            if (patchingErrors) {
-              errorMessage += patchingErrors;
-            } else {
-              errorMessage = await checkForErrors(
-                fcr.snippet.file,
-                fcr.snippet.entireFile,
-                updatedFile,
-              );
-            }
-            additionalMessages.push({ role: "assistant", content: rawText });
-            updateIfChanged(updatedFile);
-            globalUpdatedFile = updatedFile;
-            rawText += "\n\n";
-            setStreamData((prev) => prev + "\n\n");
-            break;
-          }
-          const text = decoder.decode(value);
-          rawText += text;
-          setStreamData((prev: string) => prev + text);
-          try {
-            let updatedFile = "";
-            let _ = "";
-            if (changeType == "modify") {
-              [updatedFile, _] = parseRegexFromOpenAIModify(
-                rawText,
-                currentIterationContents,
-              );
-            } else if (changeType == "create") {
-              [updatedFile, _] = parseRegexFromOpenAICreate(
-                rawText,
-                currentIterationContents,
-              );
-            }
-            if (j % 3 == 0) {
-              updateIfChanged(updatedFile);
-            }
-            j += 1;
-          } catch (e) {
-            console.error(e);
-          }
-        }
-        if (!isRunningRef.current) {
-          setIsLoading(false, fcr, fileChangeRequests, setFileChangeRequests);
-          setLoadingMessage("");
-          setStatusForFCR(
-            "idle",
-            fcr,
-            fileChangeRequests,
-            setFileChangeRequests,
-          );
-          return;
-        }
-        setHideMerge(false, fcr);
-        const changeLineCount = Math.abs(
-          fcr.snippet.entireFile.split("\n").length -
-            globalUpdatedFile.split("\n").length,
-        );
-        const changeCharCount = Math.abs(
-          fcr.snippet.entireFile.length - globalUpdatedFile.length,
-        );
-        if (errorMessage.length > 0) {
-          console.error("errorMessage in loop", errorMessage);
-          toast.error(
-            "An error occured while generating your code." +
-              (i < 3 ? " Retrying..." : " Retried 4 times so I will give up."),
-            {
-              description: errorMessage.slice(0, 800),
-              action: { label: "Dismiss", onClick: () => {} },
-            },
-          );
-          validationOutput += "\n\n" + errorMessage;
-          setScriptOutput(validationOutput);
-          setIsLoading(false, fcr, fileChangeRequests, setFileChangeRequests);
-          setStatusForFCR(
-            "in-progress",
-            fcr,
-            fileChangeRequests,
-            setFileChangeRequests,
-          );
-          setLoadingMessage("Retrying...");
-        } else {
-          toast.success(`Successfully modified file!`, {
-            description: [
-              <div key="stdout">{`There were ${changeLineCount} line and ${changeCharCount} character changes made.`}</div>,
-            ],
-            action: { label: "Dismiss", onClick: () => {} },
-          });
-          const newDiff = Diff.createPatch(
-            filePath,
-            fcr.snippet.entireFile,
-            fcr.newContents,
-          );
-          setIsLoading(false, fcr, fileChangeRequests, setFileChangeRequests);
-          setDiffForFCR(
-            newDiff,
-            fcr,
-            fileChangeRequests,
-            setFileChangeRequests,
-          );
-          isRunningRef.current = false;
-          break;
-        }
-      } catch (e: any) {
-        console.error("errorMessage in except block", errorMessage);
-        toast.error("An error occured while generating your code.", {
-          description: e,
-          action: { label: "Dismiss", onClick: () => {} },
-        });
-        if (i === maxIterations) {
-          setIsLoading(false, fcr, fileChangeRequests, setFileChangeRequests);
-          setStatusForFCR(
-            "error",
-            fcr,
-            fileChangeRequests,
-            setFileChangeRequests,
-          );
-          isRunningRef.current = false;
-          setLoadingMessage("");
-          return;
-        }
-      }
-    }
-    setIsLoading(false, fcr, fileChangeRequests, setFileChangeRequests);
-    setStatusForFCR("done", fcr, fileChangeRequests, setFileChangeRequests);
-    isRunningRef.current = false;
-    setLoadingMessage("");
-    return;
+      .with({ operationType: "modify" }, (fileModifyRequest) => {
+        console.log("modifying file");
+      })
+      .with({ operationType: "command" }, (commandRequest) => {
+        console.log("running command");
+      })
+      .exhaustive();
   };
+  // modify an existing file or create a new file, and now we can also run a command
+  // const getFileChanges = async (fcr: OperationRequest, index: number) => {
+  //   console.log("getting file changes");
+  //   var validationOutput = "";
+  //   const patches = fileChangeRequests
+  //     .slice(0, index)
+  //     .map((fcr: OperationRequest) => {
+  //       return fcr.diff;
+  //     })
+  //     .join("\n\n");
+
+  //   setIsLoading(true, fcr, fileChangeRequests, setFileChangeRequests);
+  //   setStatusForFCR(
+  //     "in-progress",
+  //     fcr,
+  //     fileChangeRequests,
+  //     setFileChangeRequests
+  //   );
+  //   setOutputToggle("llm");
+  //   setLoadingMessage("Queued...");
+  //   const changeType = fcr.operationType;
+  //   // by default we modify file
+  //   let url = "/api/openai/edit";
+  //   let prompt = fcr.instructions;
+  //   if (changeType === "create") {
+  //     url = "/api/openai/create";
+  //     prompt = systemMessagePromptCreate
+  //       .replace("{instructions}", fcr.instructions)
+  //       .replace("{filename}", fcr.snippet.file);
+  //   }
+
+  //   const body = {
+  //     prompt: prompt,
+  //     snippets: Object.values(fcr.readOnlySnippets),
+  //   };
+  //   const additionalMessages: Message[] = [];
+  //   var currentIterationContents = (fcr.snippet.entireFile || "").replace(
+  //     /\\n/g,
+  //     "\\n"
+  //   );
+  //   let errorMessage = "";
+  //   let userMessage = formatUserMessage(
+  //     fcr.instructions,
+  //     currentIterationContents,
+  //     Object.values(fcr.readOnlySnippets),
+  //     patches,
+  //     changeType
+  //   );
+
+  //   if (changeType === "create") {
+  //     userMessage =
+  //       systemMessagePromptCreate
+  //         .replace("{instructions}", fcr.instructions)
+  //         .replace("{filename}", fcr.snippet.file) + userMessage;
+  //   }
+
+  //   isRunningRef.current = true;
+  //   setScriptOutput(validationOutput);
+  //   setStreamData("");
+  //   if (!hideMerge) {
+  //     setFileChangeRequests((prev: OperationRequest[]) => {
+  //       setHideMerge(true, fcr);
+  //       setFileForFCR(
+  //         prev[index].snippet.entireFile,
+  //         fcr,
+  //         fileChangeRequests,
+  //         setFileChangeRequests
+  //       );
+  //       return prev;
+  //     });
+  //   }
+  //   const maxIterations = 3;
+  //   for (let i = 0; i <= maxIterations; i++) {
+  //     if (!isRunningRef.current) {
+  //       setIsLoading(false, fcr, fileChangeRequests, setFileChangeRequests);
+  //       return;
+  //     }
+  //     if (i !== 0) {
+  //       var retryMessage = "";
+  //       if (fcr.snippet.entireFile === currentIterationContents) {
+  //         retryMessage = retryChangesMadePrompt.replace(
+  //           "{changes_made}",
+  //           createPatch(
+  //             fcr.snippet.file,
+  //             fcr.snippet.entireFile,
+  //             currentIterationContents
+  //           )
+  //         );
+  //       } else {
+  //         retryMessage = retryPrompt;
+  //       }
+  //       retryMessage = retryMessage.replace(
+  //         "{error_message}",
+  //         errorMessage.trim()
+  //       );
+  //       userMessage = retryMessage;
+  //     }
+  //     setLoadingMessage("Queued...");
+  //     const response = await fetch(url, {
+  //       method: "POST",
+  //       body: JSON.stringify({
+  //         ...body,
+  //         fileContents: currentIterationContents,
+  //         additionalMessages,
+  //         userMessage,
+  //       }),
+  //     });
+  //     setLoadingMessage("Generating code...");
+  //     additionalMessages.push({ role: "user", content: userMessage });
+  //     errorMessage = "";
+  //     var currentContents = currentIterationContents;
+  //     const updateIfChanged = (newContents: string) => {
+  //       if (newContents !== currentIterationContents) {
+  //         setFileForFCR(
+  //           newContents,
+  //           fcr,
+  //           fileChangeRequests,
+  //           setFileChangeRequests
+  //         );
+  //         currentContents = newContents;
+  //       }
+  //     };
+  //     try {
+  //       const reader = response.body!.getReader();
+  //       const decoder = new TextDecoder("utf-8");
+  //       let rawText = String.raw``;
+
+  //       setHideMerge(false, fcr);
+  //       var j = 0;
+  //       let globalUpdatedFile = ""; // this is really jank and bad but a quick fix because of the async nature of setters in react
+  //       while (isRunningRef.current) {
+  //         var { done, value } = await reader?.read();
+  //         if (done) {
+  //           let updatedFile = "";
+  //           let patchingErrors = "";
+  //           if (changeType == "modify") {
+  //             let [newUpdatedFile, newPatchingErrors] =
+  //               parseRegexFromOpenAIModify(
+  //                 rawText || "",
+  //                 currentIterationContents
+  //               );
+  //             updatedFile = newUpdatedFile;
+  //             patchingErrors = newPatchingErrors;
+  //           } else if (changeType == "create") {
+  //             let [newUpdatedFile, newPatchingErrors] =
+  //               parseRegexFromOpenAICreate(
+  //                 rawText || "",
+  //                 currentIterationContents
+  //               );
+  //             updatedFile = newUpdatedFile;
+  //             patchingErrors = newPatchingErrors;
+  //           }
+  //           if (patchingErrors) {
+  //             errorMessage += patchingErrors;
+  //           } else {
+  //             errorMessage = await checkForErrors(
+  //               fcr.snippet.file,
+  //               fcr.snippet.entireFile,
+  //               updatedFile
+  //             );
+  //           }
+  //           additionalMessages.push({ role: "assistant", content: rawText });
+  //           updateIfChanged(updatedFile);
+  //           globalUpdatedFile = updatedFile;
+  //           rawText += "\n\n";
+  //           setStreamData((prev) => prev + "\n\n");
+  //           break;
+  //         }
+  //         const text = decoder.decode(value);
+  //         rawText += text;
+  //         setStreamData((prev: string) => prev + text);
+  //         try {
+  //           let updatedFile = "";
+  //           let _ = "";
+  //           if (changeType == "modify") {
+  //             [updatedFile, _] = parseRegexFromOpenAIModify(
+  //               rawText,
+  //               currentIterationContents
+  //             );
+  //           } else if (changeType == "create") {
+  //             [updatedFile, _] = parseRegexFromOpenAICreate(
+  //               rawText,
+  //               currentIterationContents
+  //             );
+  //           }
+  //           if (j % 3 == 0) {
+  //             updateIfChanged(updatedFile);
+  //           }
+  //           j += 1;
+  //         } catch (e) {
+  //           console.error(e);
+  //         }
+  //       }
+  //       if (!isRunningRef.current) {
+  //         setIsLoading(false, fcr, fileChangeRequests, setFileChangeRequests);
+  //         setLoadingMessage("");
+  //         setStatusForFCR(
+  //           "idle",
+  //           fcr,
+  //           fileChangeRequests,
+  //           setFileChangeRequests
+  //         );
+  //         return;
+  //       }
+  //       setHideMerge(false, fcr);
+  //       const changeLineCount = Math.abs(
+  //         fcr.snippet.entireFile.split("\n").length -
+  //           globalUpdatedFile.split("\n").length
+  //       );
+  //       const changeCharCount = Math.abs(
+  //         fcr.snippet.entireFile.length - globalUpdatedFile.length
+  //       );
+  //       if (errorMessage.length > 0) {
+  //         console.error("errorMessage in loop", errorMessage);
+  //         toast.error(
+  //           "An error occured while generating your code." +
+  //             (i < 3 ? " Retrying..." : " Retried 4 times so I will give up."),
+  //           {
+  //             description: errorMessage.slice(0, 800),
+  //             action: { label: "Dismiss", onClick: () => {} },
+  //           }
+  //         );
+  //         validationOutput += "\n\n" + errorMessage;
+  //         setScriptOutput(validationOutput);
+  //         setIsLoading(false, fcr, fileChangeRequests, setFileChangeRequests);
+  //         setStatusForFCR(
+  //           "in-progress",
+  //           fcr,
+  //           fileChangeRequests,
+  //           setFileChangeRequests
+  //         );
+  //         setLoadingMessage("Retrying...");
+  //       } else {
+  //         toast.success(`Successfully modified file!`, {
+  //           description: [
+  //             <div key="stdout">{`There were ${changeLineCount} line and ${changeCharCount} character changes made.`}</div>,
+  //           ],
+  //           action: { label: "Dismiss", onClick: () => {} },
+  //         });
+  //         const newDiff = Diff.createPatch(
+  //           filePath,
+  //           fcr.snippet.entireFile,
+  //           fcr.newContents
+  //         );
+  //         setIsLoading(false, fcr, fileChangeRequests, setFileChangeRequests);
+  //         setDiffForFCR(
+  //           newDiff,
+  //           fcr,
+  //           fileChangeRequests,
+  //           setFileChangeRequests
+  //         );
+  //         isRunningRef.current = false;
+  //         break;
+  //       }
+  //     } catch (e: any) {
+  //       console.error("errorMessage in except block", errorMessage);
+  //       toast.error("An error occured while generating your code.", {
+  //         description: e,
+  //         action: { label: "Dismiss", onClick: () => {} },
+  //       });
+  //       if (i === maxIterations) {
+  //         setIsLoading(false, fcr, fileChangeRequests, setFileChangeRequests);
+  //         setStatusForFCR(
+  //           "error",
+  //           fcr,
+  //           fileChangeRequests,
+  //           setFileChangeRequests
+  //         );
+  //         isRunningRef.current = false;
+  //         setLoadingMessage("");
+  //         return;
+  //       }
+  //     }
+  //   }
+  //   setIsLoading(false, fcr, fileChangeRequests, setFileChangeRequests);
+  //   setStatusForFCR("done", fcr, fileChangeRequests, setFileChangeRequests);
+  //   isRunningRef.current = false;
+  //   setLoadingMessage("");
+  //   return;
+  // };
 
   // syncronously modify/create all files
-  const getAllFileChanges = async (fcrs: FileChangeRequest[]) => {
+  const getAllFileChanges = async (fcrs: OperationRequest[]) => {
     for (let index = 0; index < fcrs.length; index++) {
       const fcr = fcrs[index];
-      await getFileChanges(fcr, index);
+      // await getFileChanges(fcr, index);
+      await runRequest(fcr, index);
     }
   };
 
-  const saveAllFiles = async (fcrs: FileChangeRequest[]) => {
-    for await (const [index, fcr] of fcrs.entries()) {
-      setOldFileForFCR(
-        fcr.newContents,
-        fcr,
-        fileChangeRequests,
-        setFileChangeRequests,
-      );
-      setHideMerge(true, fcr);
-      await writeFile(repoName, fcr.snippet.file, fcr.newContents);
-    }
-    toast.success(`Succesfully saved ${fcrs.length} files!`, {
-      action: { label: "Dismiss", onClick: () => {} },
-    });
-  };
+  // const saveAllFiles = async (fcrs: OperationRequest[]) => {
+  //   for await (const [index, fcr] of fcrs.entries()) {
+  //     setOldFileForFCR(
+  //       fcr.newContents,
+  //       fcr,
+  //       fileChangeRequests,
+  //       setFileChangeRequests
+  //     );
+  //     setHideMerge(true, fcr);
+  //     await writeFile(repoName, fcr.snippet.file, fcr.newContents);
+  //   }
+  //   toast.success(`Succesfully saved ${fcrs.length} files!`, {
+  //     action: { label: "Dismiss", onClick: () => {} },
+  //   });
+  // };
 
   const syncAllFiles = async () => {
-    fileChangeRequests.forEach(
-      async (fcr: FileChangeRequest, index: number) => {
+    fileChangeRequests.forEach(async (fcr: OperationRequest, index: number) => {
+      if (fcr.operationType === "command" || fcr.isLoading) {
+        return;
+      } else {
         const response = await getFile(repoName, fcr.snippet.file);
         setFileForFCR(
           response.contents,
           fcr,
           fileChangeRequests,
-          setFileChangeRequests,
+          setFileChangeRequests
         );
         setOldFileForFCR(
           response.contents,
           fcr,
           fileChangeRequests,
-          setFileChangeRequests,
+          setFileChangeRequests
         );
         setIsLoading(false, fcr, fileChangeRequests, setFileChangeRequests);
-      },
-    );
+      }
+    });
   };
   return (
     <ResizablePanel defaultSize={35} className="p-6 h-[90vh]">
@@ -747,10 +770,10 @@ const DashboardActions = ({
               setCurrentFileChangeRequestIndex={
                 setCurrentFileChangeRequestIndex
               }
-              getFileChanges={getFileChanges}
+              getFileChanges={runRequest}
               isRunningRef={isRunningRef}
               syncAllFiles={syncAllFiles}
-              getAllFileChanges={() => getAllFileChanges(fileChangeRequests)}
+              // getAllFileChanges={() => getAllFileChanges(fileChangeRequests)}
               setCurrentTab={setCurrentTab}
             />
             <Collapsible
@@ -773,7 +796,7 @@ const DashboardActions = ({
                       checked={doValidate}
                       onClick={() => setDoValidate(!doValidate)}
                       disabled={fileChangeRequests.some(
-                        (fcr: FileChangeRequest) => fcr.isLoading,
+                        (fcr: OperationRequest) => fcr.isLoading
                       )}
                     />
                     <AlertDialogContent className="p-12">
@@ -858,7 +881,7 @@ const DashboardActions = ({
                   }}
                   disabled={
                     fileChangeRequests.some(
-                      (fcr: FileChangeRequest) => fcr.isLoading,
+                      (fcr: OperationRequest) => fcr.isLoading
                     ) || !doValidate
                   }
                   size="sm"
@@ -890,7 +913,7 @@ const DashboardActions = ({
                   onChange={(e) => setValidationScript(e.target.value)}
                   disabled={
                     fileChangeRequests.some(
-                      (fcr: FileChangeRequest) => fcr.isLoading,
+                      (fcr: OperationRequest) => fcr.isLoading
                     ) || !doValidate
                   }
                 ></Textarea>
@@ -903,7 +926,7 @@ const DashboardActions = ({
                   onChange={(e) => setTestScript(e.target.value)}
                   disabled={
                     fileChangeRequests.some(
-                      (fcr: FileChangeRequest) => fcr.isLoading,
+                      (fcr: OperationRequest) => fcr.isLoading
                     ) || !doValidate
                   }
                 ></Textarea>

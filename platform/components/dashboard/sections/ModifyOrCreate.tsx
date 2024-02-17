@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Button } from "../../ui/button";
 import { FaArrowRotateLeft } from "react-icons/fa6";
 import { setStatusForAll } from "../../../state/fcrStateHelpers";
-import { FileChangeRequestsState } from "../../../state/fcrAtoms";
+import { OperationRequestsState } from "../../../state/fcrAtoms";
 import { useRecoilState } from "recoil";
 
 const ModifyOrCreate = ({
@@ -21,7 +21,7 @@ const ModifyOrCreate = ({
   const [openModify, setOpenModify] = useState(false);
   const [openCreate, setOpenCreate] = useState(false);
   const [fileChangeRequests, setFileChangeRequests] = useRecoilState(
-    FileChangeRequestsState,
+    OperationRequestsState
   );
 
   return (

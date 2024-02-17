@@ -1,12 +1,12 @@
 import React, { ReactNode, memo, useState } from "react";
 import { Snippet } from "../../../lib/search";
-import { FileChangeRequest, snippetKey } from "../../../lib/types";
+import { OperationRequest, snippetKey } from "../../../lib/types";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import FCRCreate from "./FCRCreate";
 import FCRModify from "./FCRModify";
 import { SuggestionDataItem } from "react-mentions";
 import { useRecoilState } from "recoil";
-import { FileChangeRequestsState } from "../../../state/fcrAtoms";
+import { OperationRequestsState } from "../../../state/fcrAtoms";
 
 const FCRList = memo(function FCRList({
   repoName,
@@ -23,15 +23,15 @@ const FCRList = memo(function FCRList({
     React.SetStateAction<number>
   >;
   getFileChanges: (
-    fileChangeRequest: FileChangeRequest,
-    index: number,
+    fileChangeRequest: OperationRequest,
+    index: number
   ) => Promise<void>;
   isRunningRef: React.MutableRefObject<boolean>;
 }) {
   const [fileChangeRequests, setFileChangeRequests] = useRecoilState(
-    FileChangeRequestsState,
+    OperationRequestsState
   );
-  const getDynamicClassNames = (fcr: FileChangeRequest, index: number) => {
+  const getDynamicClassNames = (fcr: OperationRequest, index: number) => {
     let classNames = "";
     if (index === currentFileChangeRequestIndex) {
       // current selected fcr
@@ -57,9 +57,9 @@ const FCRList = memo(function FCRList({
 
   // helper functions mostly copied from https://codesandbox.io/p/sandbox/k260nyxq9v?file=%2Findex.js%3A36%2C1-40%2C4
   const reorder = (
-    fcrList: FileChangeRequest[],
+    fcrList: OperationRequest[],
     startIndex: number,
-    endIndex: number,
+    endIndex: number
   ) => {
     const result = Array.from(fcrList);
     const [removed] = result.splice(startIndex, 1);
@@ -75,7 +75,7 @@ const FCRList = memo(function FCRList({
     const items = reorder(
       fileChangeRequests,
       result.source.index,
-      result.destination.index,
+      result.destination.index
     );
     setFileChangeRequests(items);
   };
@@ -104,7 +104,10 @@ const FCRList = memo(function FCRList({
   // { fcr.file : instructions }
   const [fcrInstructions, setFCRInstructions] = useState(() => {
     let newMap: { [key: string]: string } = {};
-    fileChangeRequests.forEach((fcr: FileChangeRequest) => {
+    fileChangeRequests.forEach((fcr: OperationRequest) => {
+      if (fcr.operationType === "command") {
+        return;
+      }
       newMap[snippetKey(fcr.snippet)] = fcr.instructions;
     });
     return newMap;
@@ -115,7 +118,7 @@ const FCRList = memo(function FCRList({
     search: string,
     highlightedDisplay: ReactNode,
     index: number,
-    focused: boolean,
+    focused: boolean
   ) => {
     const maxLength = 50;
     const suggestedFileName =
@@ -124,7 +127,7 @@ const FCRList = memo(function FCRList({
         : "..." +
           suggestion.display!.slice(
             suggestion.display!.length - maxLength,
-            suggestion.display!.length,
+            suggestion.display!.length
           );
     if (index > 10) {
       return null;
@@ -147,8 +150,8 @@ const FCRList = memo(function FCRList({
             ref={provided.innerRef}
             style={getListStyle(snapshot.isDraggingOver)}
           >
-            {fileChangeRequests.map((fcr: FileChangeRequest, index: number) =>
-              fcr.changeType == "create" ? (
+            {fileChangeRequests.map((fcr: OperationRequest, index: number) => {
+              if (fcr.operationType == "create") {
                 <FCRCreate
                   repoName={repoName}
                   setCurrentFileChangeRequestIndex={
@@ -165,8 +168,8 @@ const FCRList = memo(function FCRList({
                   setFCRInstructions={setFCRInstructions}
                   setUserSuggestion={setUserSuggestion}
                   key={index}
-                />
-              ) : (
+                />;
+              } else if (fcr.operationType == "modify") {
                 <FCRModify
                   key={index}
                   repoName={repoName}
@@ -183,9 +186,9 @@ const FCRList = memo(function FCRList({
                   fcrInstructions={fcrInstructions}
                   setFCRInstructions={setFCRInstructions}
                   setUserSuggestion={setUserSuggestion}
-                />
-              ),
-            )}
+                />;
+              }
+            })}
             {provided.placeholder}
           </div>
         )}

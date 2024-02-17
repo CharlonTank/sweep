@@ -1,11 +1,11 @@
 import React, { memo, forwardRef, Ref } from "react";
-import { FileChangeRequest } from "../../lib/types";
+import { OperationRequest } from "../../lib/types";
 import ModifyOrCreate from "./sections/ModifyOrCreate";
 import FCRList from "./sections/FCRList";
 import { Button } from "../ui/button";
 import CreationPanel from "./sections/CreationPanel";
 import { useRecoilState } from "recoil";
-import { FileChangeRequestsState } from "../../state/fcrAtoms";
+import { OperationRequestsState } from "../../state/fcrAtoms";
 
 const DashboardInstructions = forwardRef(function DashboardInstructions(
   {
@@ -18,7 +18,6 @@ const DashboardInstructions = forwardRef(function DashboardInstructions(
     getFileChanges,
     isRunningRef,
     syncAllFiles,
-    getAllFileChanges,
     setCurrentTab,
   }: {
     filePath: string;
@@ -30,18 +29,18 @@ const DashboardInstructions = forwardRef(function DashboardInstructions(
       React.SetStateAction<number>
     >;
     getFileChanges: (
-      fileChangeRequest: FileChangeRequest,
-      index: number,
+      fileChangeRequest: OperationRequest,
+      index: number
     ) => Promise<void>;
     isRunningRef: React.MutableRefObject<boolean>;
     syncAllFiles: () => Promise<void>;
-    getAllFileChanges: () => Promise<void>;
+    /* getAllFileChanges: () => Promise<void>; */
     setCurrentTab: React.Dispatch<React.SetStateAction<"planning" | "coding">>;
   },
-  ref: Ref<HTMLDivElement>,
+  ref: Ref<HTMLDivElement>
 ) {
   const [fileChangeRequests, setFileChangeRequests] = useRecoilState(
-    FileChangeRequestsState,
+    OperationRequestsState
   );
   return (
     <div
@@ -70,7 +69,7 @@ const DashboardInstructions = forwardRef(function DashboardInstructions(
         directories={directories}
         setCurrentTab={setCurrentTab}
       />
-      {fileChangeRequests.length === 0 ? (
+      {/* {fileChangeRequests.length === 0 ? (
         <div className="p-2 text-zinc-300">
           No File Change Requests added yet.
         </div>
@@ -84,7 +83,7 @@ const DashboardInstructions = forwardRef(function DashboardInstructions(
             Run all
           </Button>
         </div>
-      )}
+      )} */}
     </div>
   );
 });

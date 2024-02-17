@@ -1,7 +1,12 @@
 import React, { ReactNode, memo } from "react";
 import { getFile } from "../../../lib/api.service";
 import { Snippet } from "../../../lib/search";
-import { FileChangeRequest, snippetKey } from "../../../lib/types";
+import {
+  CreateOrModifyOperationRequest,
+  OperationRequest,
+  operationTypeToString,
+  snippetKey,
+} from "../../../lib/types";
 import { FaPlay, FaTimes } from "react-icons/fa";
 import { FaStop, FaTrash } from "react-icons/fa6";
 import { Badge } from "../../ui/badge";
@@ -9,7 +14,7 @@ import { Draggable } from "react-beautiful-dnd";
 import { MentionsInput, Mention, SuggestionDataItem } from "react-mentions";
 import { Button } from "../../ui/button";
 import { useRecoilState } from "recoil";
-import { FileChangeRequestsState } from "../../../state/fcrAtoms";
+import { OperationRequestsState } from "../../../state/fcrAtoms";
 import {
   setStatusForFCR,
   removeFileChangeRequest,
@@ -18,10 +23,6 @@ import {
 } from "../../../state/fcrStateHelpers";
 
 const instructionsPlaceholder = `Instructions for what to modify. Type "@filename" for Sweep to read another file.`;
-
-const capitalize = (s: string) => {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-};
 
 const FCRModify = memo(function FCRModify({
   repoName,
@@ -42,13 +43,16 @@ const FCRModify = memo(function FCRModify({
     React.SetStateAction<number>
   >;
   getFileChanges: (
-    fileChangeRequest: FileChangeRequest,
-    index: number,
+    fileChangeRequest: CreateOrModifyOperationRequest,
+    index: number
   ) => Promise<void>;
   isRunningRef: React.MutableRefObject<boolean>;
-  fcr: FileChangeRequest;
+  fcr: CreateOrModifyOperationRequest;
   index: number;
-  getDynamicClassNames: (fcr: FileChangeRequest, index: number) => string;
+  getDynamicClassNames: (
+    fcr: CreateOrModifyOperationRequest,
+    index: number
+  ) => string;
   getItemStyle: (isDragging: boolean, draggableStyle: any) => any;
   mentionFiles: { id: any; display: any }[];
   fcrInstructions: { [key: string]: string };
@@ -60,11 +64,11 @@ const FCRModify = memo(function FCRModify({
     search: string,
     highlightedDisplay: ReactNode,
     index: number,
-    focused: boolean,
+    focused: boolean
   ) => JSX.Element | null;
 }) {
   const [fileChangeRequests, setFileChangeRequests] = useRecoilState(
-    FileChangeRequestsState,
+    OperationRequestsState
   );
   return (
     <Draggable
@@ -79,7 +83,7 @@ const FCRModify = memo(function FCRModify({
           {...provided.dragHandleProps}
           style={getItemStyle(
             snapshot.isDragging,
-            provided.draggableProps.style,
+            provided.draggableProps.style
           )}
         >
           <div
@@ -109,7 +113,7 @@ const FCRModify = memo(function FCRModify({
                     removeFileChangeRequest(
                       fcr,
                       fileChangeRequests,
-                      setFileChangeRequests,
+                      setFileChangeRequests
                     );
                     setFCRInstructions((prev: any) => {
                       return {
@@ -137,7 +141,7 @@ const FCRModify = memo(function FCRModify({
                 setCurrentFileChangeRequestIndex(index);
               }}
               onChange={(e: any) => {
-                setFileChangeRequests((prev: FileChangeRequest[]) => [
+                setFileChangeRequests((prev: OperationRequest[]) => [
                   ...prev.slice(0, index),
                   {
                     ...prev[index],
@@ -154,7 +158,7 @@ const FCRModify = memo(function FCRModify({
               }}
               onBlur={(e: any) => {
                 // this apparently removes the styling on the mentions, this may be a hack
-                setFileChangeRequests((prev: FileChangeRequest[]) => [
+                setFileChangeRequests((prev: OperationRequest[]) => [
                   ...prev.slice(0, index),
                   {
                     ...prev[index],
@@ -184,7 +188,7 @@ const FCRModify = memo(function FCRModify({
                     fcr,
                     newSnippet,
                     fileChangeRequests,
-                    setFileChangeRequests,
+                    setFileChangeRequests
                   );
                 }}
                 appendSpaceOnAdd={true}
@@ -211,12 +215,12 @@ const FCRModify = memo(function FCRModify({
                           fcr,
                           snippetFile,
                           fileChangeRequests,
-                          setFileChangeRequests,
+                          setFileChangeRequests
                         );
                       }}
                     />
                   </Badge>
-                ),
+                )
               )}
             </div>
             {Object.keys(fcr.readOnlySnippets).length === 0 && (
@@ -238,7 +242,7 @@ const FCRModify = memo(function FCRModify({
                     disabled={fcr.isLoading}
                   >
                     <FaPlay />
-                    &nbsp;{capitalize(fcr.changeType)}
+                    &nbsp;{operationTypeToString(fcr.operationType)}
                   </Button>
                 ) : (
                   <Button
@@ -251,7 +255,7 @@ const FCRModify = memo(function FCRModify({
                         "idle",
                         fcr,
                         fileChangeRequests,
-                        setFileChangeRequests,
+                        setFileChangeRequests
                       );
                     }}
                   >

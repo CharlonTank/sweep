@@ -1,7 +1,12 @@
 import React, { ReactNode, memo, useEffect, useState } from "react";
 import { getFile } from "../../../lib/api.service";
 import { Snippet } from "../../../lib/search";
-import { FileChangeRequest, snippetKey } from "../../../lib/types";
+import {
+  CreateOrModifyOperationRequest,
+  OperationRequest,
+  operationTypeToString,
+  snippetKey,
+} from "../../../lib/types";
 import { FaPlay, FaTimes } from "react-icons/fa";
 import { FaStop, FaTrash } from "react-icons/fa6";
 import { Badge } from "../../ui/badge";
@@ -10,7 +15,7 @@ import { MentionsInput, Mention, SuggestionDataItem } from "react-mentions";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { useRecoilState } from "recoil";
-import { FileChangeRequestsState } from "../../../state/fcrAtoms";
+import { OperationRequestsState } from "../../../state/fcrAtoms";
 import {
   setStatusForFCR,
   setReadOnlySnippetForFCR,
@@ -19,10 +24,6 @@ import {
 } from "../../../state/fcrStateHelpers";
 
 const instructionsPlaceholder = `Give this new file a name and tell Sweep what this new file should do. Mention another file Sweep should look at with "@filename"`;
-
-const capitalize = (s: string) => {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-};
 
 const FCRCreate = memo(function FCRCreate({
   repoName,
@@ -43,13 +44,16 @@ const FCRCreate = memo(function FCRCreate({
     React.SetStateAction<number>
   >;
   getFileChanges: (
-    fileChangeRequest: FileChangeRequest,
-    index: number,
+    fileChangeRequest: CreateOrModifyOperationRequest,
+    index: number
   ) => Promise<void>;
   isRunningRef: React.MutableRefObject<boolean>;
-  fcr: FileChangeRequest;
+  fcr: CreateOrModifyOperationRequest;
   index: number;
-  getDynamicClassNames: (fcr: FileChangeRequest, index: number) => string;
+  getDynamicClassNames: (
+    fcr: CreateOrModifyOperationRequest,
+    index: number
+  ) => string;
   getItemStyle: (isDragging: boolean, draggableStyle: any) => any;
   mentionFiles: { id: any; display: any }[];
   fcrInstructions: { [key: string]: string };
@@ -61,17 +65,17 @@ const FCRCreate = memo(function FCRCreate({
     search: string,
     highlightedDisplay: ReactNode,
     index: number,
-    focused: boolean,
+    focused: boolean
   ) => JSX.Element | null;
 }) {
   const [newFileName, setNewFileName] = useState("");
   const [fileChangeRequests, setFileChangeRequests] = useRecoilState(
-    FileChangeRequestsState,
+    OperationRequestsState
   );
 
   useEffect(() => {
     setNewFileName(
-      fcr.snippet.file.split("/")[fcr.snippet.file.split("/").length - 1],
+      fcr.snippet.file.split("/")[fcr.snippet.file.split("/").length - 1]
     );
   }, [fcr]);
   return (
@@ -87,7 +91,7 @@ const FCRCreate = memo(function FCRCreate({
           {...provided.dragHandleProps}
           style={getItemStyle(
             snapshot.isDragging,
-            provided.draggableProps.style,
+            provided.draggableProps.style
           )}
         >
           <div
@@ -123,7 +127,7 @@ const FCRCreate = memo(function FCRCreate({
                           [newFilePath]: prev[fcr.snippet.file],
                         };
                       });
-                      setFileChangeRequests((prev: FileChangeRequest[]) => [
+                      setFileChangeRequests((prev: any) => [
                         ...prev.slice(0, index),
                         {
                           ...prev[index],
@@ -145,7 +149,7 @@ const FCRCreate = memo(function FCRCreate({
                     removeFileChangeRequest(
                       fcr,
                       fileChangeRequests,
-                      setFileChangeRequests,
+                      setFileChangeRequests
                     );
                     setFCRInstructions((prev: any) => {
                       return {
@@ -174,7 +178,7 @@ const FCRCreate = memo(function FCRCreate({
                 setCurrentFileChangeRequestIndex(index);
               }}
               onChange={(e: any) => {
-                setFileChangeRequests((prev: FileChangeRequest[]) => [
+                setFileChangeRequests((prev: OperationRequest[]) => [
                   ...prev.slice(0, index),
                   {
                     ...prev[index],
@@ -191,7 +195,7 @@ const FCRCreate = memo(function FCRCreate({
               }}
               onBlur={(e: any) => {
                 // this apparently removes the styling on the mentions, this may be a hack
-                setFileChangeRequests((prev: FileChangeRequest[]) => [
+                setFileChangeRequests((prev: OperationRequest[]) => [
                   ...prev.slice(0, index),
                   {
                     ...prev[index],
@@ -221,7 +225,7 @@ const FCRCreate = memo(function FCRCreate({
                     fcr,
                     newSnippet,
                     fileChangeRequests,
-                    setFileChangeRequests,
+                    setFileChangeRequests
                   );
                 }}
                 appendSpaceOnAdd={true}
@@ -247,12 +251,12 @@ const FCRCreate = memo(function FCRCreate({
                           fcr,
                           snippetFile,
                           fileChangeRequests,
-                          setFileChangeRequests,
+                          setFileChangeRequests
                         );
                       }}
                     />
                   </Badge>
-                ),
+                )
               )}
             </div>
             {Object.keys(fcr.readOnlySnippets).length === 0 && (
@@ -274,7 +278,7 @@ const FCRCreate = memo(function FCRCreate({
                     disabled={fcr.isLoading}
                   >
                     <FaPlay />
-                    &nbsp;{capitalize(fcr.changeType)}
+                    &nbsp;{operationTypeToString(fcr.operationType)}
                   </Button>
                 ) : (
                   <Button
@@ -287,7 +291,7 @@ const FCRCreate = memo(function FCRCreate({
                         "idle",
                         fcr,
                         fileChangeRequests,
-                        setFileChangeRequests,
+                        setFileChangeRequests
                       );
                     }}
                   >
