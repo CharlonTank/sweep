@@ -1,7 +1,7 @@
-import { FileChangeRequest } from "../lib/types";
+import { OperationRequest } from "../lib/types";
 import { atom } from "recoil";
 
-export const FileChangeRequestsState = atom({
+export const OperationRequestsState = atom({
   key: "fileChangeRequests",
-  default: [] as FileChangeRequest[],
+  default: [] as OperationRequest[],
 });

@@ -1,11 +1,15 @@
-import { FileChangeRequest, Snippet } from "../lib/types";
+import { CreateOrModifyOperationRequest, OperationRequest, Snippet } from "../lib/types";
 
-const fcrEqual = (a: FileChangeRequest, b: FileChangeRequest) => {
-  return (
-    a.snippet.file === b.snippet.file &&
-    a.snippet.start === b.snippet.start &&
-    a.snippet.end === b.snippet.end
-  );
+export const fcrEqual = (a: OperationRequest, b: CreateOrModifyOperationRequest) => {
+  if (a.operationType === "command") {
+    return false;
+  } else {
+    return (
+      a.snippet.file === b.snippet.file &&
+      a.snippet.start === b.snippet.start &&
+      a.snippet.end === b.snippet.end
+    );
+  }
 };
 
 const undefinedCheck = (variable: any) => {
@@ -16,16 +20,16 @@ const undefinedCheck = (variable: any) => {
 
 export const setIsLoading = (
   newIsLoading: boolean,
-  fcr: FileChangeRequest,
-  fcrs: FileChangeRequest[],
+  fcr: CreateOrModifyOperationRequest,
+  fcrs: OperationRequest[],
   setFCRs: any,
 ) => {
   try {
-    const fcrIndex = fcrs.findIndex((fileChangeRequest: FileChangeRequest) =>
+    const fcrIndex = fcrs.findIndex((fileChangeRequest: OperationRequest) =>
       fcrEqual(fileChangeRequest, fcr),
     );
     undefinedCheck(fcrIndex);
-    setFCRs((prev: FileChangeRequest[]) => {
+    setFCRs((prev: CreateOrModifyOperationRequest[]) => {
       return [
         ...prev.slice(0, fcrIndex),
         {
@@ -42,16 +46,16 @@ export const setIsLoading = (
 
 export const setStatusForFCR = (
   newStatus: "queued" | "in-progress" | "done" | "error" | "idle",
-  fcr: FileChangeRequest,
-  fcrs: FileChangeRequest[],
+  fcr: CreateOrModifyOperationRequest,
+  fcrs: OperationRequest[],
   setFCRs: any,
 ) => {
   try {
-    const fcrIndex = fcrs.findIndex((fileChangeRequest: FileChangeRequest) =>
+    const fcrIndex = fcrs.findIndex((fileChangeRequest: OperationRequest) =>
       fcrEqual(fileChangeRequest, fcr),
     );
     undefinedCheck(fcrIndex);
-    setFCRs((prev: FileChangeRequest[]) => {
+    setFCRs((prev: CreateOrModifyOperationRequest[]) => {
       return [
         ...prev.slice(0, fcrIndex),
         {
@@ -70,7 +74,7 @@ export const setStatusForAll = (
   newStatus: "queued" | "in-progress" | "done" | "error" | "idle",
   setFCRs: any,
 ) => {
-  setFCRs((prev: FileChangeRequest[]) => {
+  setFCRs((prev: CreateOrModifyOperationRequest[]) => {
     return prev.map((fileChangeRequest) => {
       return {
         ...fileChangeRequest,
@@ -82,16 +86,16 @@ export const setStatusForAll = (
 
 export const setFileForFCR = (
   newFile: string,
-  fcr: FileChangeRequest,
-  fcrs: FileChangeRequest[],
+  fcr: CreateOrModifyOperationRequest,
+  fcrs: OperationRequest[],
   setFCRs: any,
 ) => {
   try {
-    const fcrIndex = fcrs.findIndex((fileChangeRequest: FileChangeRequest) =>
+    const fcrIndex = fcrs.findIndex((fileChangeRequest: OperationRequest) =>
       fcrEqual(fileChangeRequest, fcr),
     );
     undefinedCheck(fcrIndex);
-    setFCRs((prev: FileChangeRequest[]) => {
+    setFCRs((prev: CreateOrModifyOperationRequest[]) => {
       return [
         ...prev.slice(0, fcrIndex),
         {
@@ -108,16 +112,16 @@ export const setFileForFCR = (
 
 export const setOldFileForFCR = (
   newOldFile: string,
-  fcr: FileChangeRequest,
-  fcrs: FileChangeRequest[],
+  fcr: CreateOrModifyOperationRequest,
+  fcrs: OperationRequest[],
   setFCRs: any,
 ) => {
   try {
-    const fcrIndex = fcrs.findIndex((fileChangeRequest: FileChangeRequest) =>
+    const fcrIndex = fcrs.findIndex((fileChangeRequest: OperationRequest) =>
       fcrEqual(fileChangeRequest, fcr),
     );
     undefinedCheck(fcrIndex);
-    setFCRs((prev: FileChangeRequest[]) => {
+    setFCRs((prev: CreateOrModifyOperationRequest[]) => {
       return [
         ...prev.slice(0, fcrIndex),
         {
@@ -136,16 +140,16 @@ export const setOldFileForFCR = (
 };
 
 export const removeFileChangeRequest = (
-  fcr: FileChangeRequest,
-  fcrs: FileChangeRequest[],
+  fcr: CreateOrModifyOperationRequest,
+  fcrs: OperationRequest[],
   setFCRs: any,
 ) => {
   try {
-    const fcrIndex = fcrs.findIndex((fileChangeRequest: FileChangeRequest) =>
+    const fcrIndex = fcrs.findIndex((fileChangeRequest: OperationRequest) =>
       fcrEqual(fileChangeRequest, fcr),
     );
     undefinedCheck(fcrIndex);
-    setFCRs((prev: FileChangeRequest[]) => {
+    setFCRs((prev: OperationRequest[]) => {
       return [...prev.slice(0, fcrIndex), ...prev.slice(fcrIndex! + 1)];
     });
   } catch (error) {
@@ -154,7 +158,7 @@ export const removeFileChangeRequest = (
 };
 
 export const setHideMergeAll = (newHideMerge: boolean, setFCRs: any) => {
-  setFCRs((prev: FileChangeRequest[]) => {
+  setFCRs((prev: CreateOrModifyOperationRequest[]) => {
     return prev.map((fileChangeRequest) => {
       return {
         ...fileChangeRequest,
@@ -166,17 +170,17 @@ export const setHideMergeAll = (newHideMerge: boolean, setFCRs: any) => {
 
 // updates readOnlySnippets for a certain fcr then updates entire fileChangeRequests array
 export const setReadOnlySnippetForFCR = (
-  fcr: FileChangeRequest,
+  fcr: CreateOrModifyOperationRequest,
   readOnlySnippet: Snippet,
-  fcrs: FileChangeRequest[],
+  fcrs: OperationRequest[],
   setFCRs: any,
 ) => {
   try {
-    const fcrIndex = fcrs.findIndex((fileChangeRequest: FileChangeRequest) =>
+    const fcrIndex = fcrs.findIndex((fileChangeRequest: OperationRequest) =>
       fcrEqual(fileChangeRequest, fcr),
     );
     undefinedCheck(fcrIndex);
-    setFCRs((prev: FileChangeRequest[]) => {
+    setFCRs((prev: CreateOrModifyOperationRequest[]) => {
       const updatedFcr = {
         ...prev[fcrIndex],
         readOnlySnippets: {
@@ -196,17 +200,17 @@ export const setReadOnlySnippetForFCR = (
 };
 
 export const removeReadOnlySnippetForFCR = (
-  fcr: FileChangeRequest,
+  fcr: CreateOrModifyOperationRequest,
   snippetFile: string,
-  fcrs: FileChangeRequest[],
+  fcrs: OperationRequest[],
   setFCRs: any,
 ) => {
   try {
-    const fcrIndex = fcrs.findIndex((fileChangeRequest: FileChangeRequest) =>
+    const fcrIndex = fcrs.findIndex((fileChangeRequest: OperationRequest) =>
       fcrEqual(fileChangeRequest, fcr),
     );
     undefinedCheck(fcrIndex);
-    setFCRs((prev: FileChangeRequest[]) => {
+    setFCRs((prev: CreateOrModifyOperationRequest[]) => {
       const { [snippetFile]: _, ...restOfSnippets } =
         prev[fcrIndex].readOnlySnippets;
       const updatedFCR = {
@@ -226,16 +230,16 @@ export const removeReadOnlySnippetForFCR = (
 
 export const setDiffForFCR = (
   newDiff: string,
-  fcr: FileChangeRequest,
-  fcrs: FileChangeRequest[],
+  fcr: CreateOrModifyOperationRequest,
+  fcrs: OperationRequest[],
   setFCRs: any,
 ) => {
   try {
-    const fcrIndex = fcrs.findIndex((fileChangeRequest: FileChangeRequest) =>
+    const fcrIndex = fcrs.findIndex((fileChangeRequest: OperationRequest) =>
       fcrEqual(fileChangeRequest, fcr),
     );
     undefinedCheck(fcrIndex);
-    setFCRs((prev: FileChangeRequest[]) => {
+    setFCRs((prev: CreateOrModifyOperationRequest[]) => {
       return [
         ...prev.slice(0, fcrIndex),
         {

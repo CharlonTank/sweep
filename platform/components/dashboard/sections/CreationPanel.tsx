@@ -12,9 +12,9 @@ import { getFile } from "../../../lib/api.service";
 import { Snippet } from "../../../lib/search";
 import { cn } from "../../../lib/utils";
 import { Button } from "../../ui/button";
-import { FileChangeRequest } from "../../../lib/types";
+import { OperationRequest } from "../../../lib/types";
 import { FaPlus } from "react-icons/fa6";
-import { FileChangeRequestsState } from "../../../state/fcrAtoms";
+import { OperationRequestsState } from "../../../state/fcrAtoms";
 import { useRecoilState } from "recoil";
 
 const CreationPanel = ({
@@ -34,7 +34,7 @@ const CreationPanel = ({
   const [openModify, setOpenModify] = useState(false);
   const [openCreate, setOpenCreate] = useState(false);
   const [fileChangeRequests, setFileChangeRequests] = useRecoilState(
-    FileChangeRequestsState,
+    OperationRequestsState
   );
 
   return (
@@ -86,16 +86,19 @@ const CreationPanel = ({
                       onSelect={async (currentValue) => {
                         // ensure file is not already included
                         if (
-                          fileChangeRequests.some(
-                            (fcr: FileChangeRequest) =>
-                              fcr.snippet.file === file.value,
-                          )
+                          fileChangeRequests.some((fcr: OperationRequest) => {
+                            if (fcr.operationType === "command") {
+                              false;
+                            } else {
+                              fcr.snippet.file === file.value;
+                            }
+                          })
                         ) {
                           return;
                         }
                         const contents =
                           (await getFile(repoName, file.value)).contents || "";
-                        setFileChangeRequests((prev: FileChangeRequest[]) => {
+                        setFileChangeRequests((prev: OperationRequest[]) => {
                           let snippet = {
                             file: file.value,
                             start: 0,
@@ -107,7 +110,7 @@ const CreationPanel = ({
                             ...prev,
                             {
                               snippet,
-                              changeType: "modify",
+                              operationType: "modify",
                               newContents: contents,
                               hideMerge: true,
                               instructions: "",
@@ -115,7 +118,7 @@ const CreationPanel = ({
                               readOnlySnippets: {},
                               diff: "",
                               status: "idle",
-                            } as FileChangeRequest,
+                            } as OperationRequest,
                           ];
                         });
                         setOpenModify(false);
@@ -125,7 +128,7 @@ const CreationPanel = ({
                       <CheckIcon
                         className={cn(
                           "ml-auto h-4 w-4",
-                          filePath === file.value ? "opacity-100" : "opacity-0",
+                          filePath === file.value ? "opacity-100" : "opacity-0"
                         )}
                       />
                     </CommandItem>
@@ -160,7 +163,7 @@ const CreationPanel = ({
                       key={dir.value}
                       value={dir.value}
                       onSelect={async (currentValue) => {
-                        setFileChangeRequests((prev: FileChangeRequest[]) => {
+                        setFileChangeRequests((prev: OperationRequest[]) => {
                           let snippet = {
                             file: dir.value,
                             start: 0,
@@ -172,7 +175,7 @@ const CreationPanel = ({
                             ...prev,
                             {
                               snippet,
-                              changeType: "create",
+                              operationType: "create",
                               newContents: "",
                               hideMerge: true,
                               instructions: "",
@@ -180,7 +183,7 @@ const CreationPanel = ({
                               readOnlySnippets: {},
                               diff: "",
                               status: "idle",
-                            } as FileChangeRequest,
+                            } as OperationRequest,
                           ];
                         });
                         setOpenCreate(false);
@@ -190,7 +193,7 @@ const CreationPanel = ({
                       <CheckIcon
                         className={cn(
                           "ml-auto h-4 w-4",
-                          filePath === dir.value ? "opacity-100" : "opacity-0",
+                          filePath === dir.value ? "opacity-100" : "opacity-0"
                         )}
                       />
                     </CommandItem>

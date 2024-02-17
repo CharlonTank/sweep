@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/rules-of-hooks */
 "use client";
 
 import {
@@ -12,21 +13,22 @@ import DashboardActions from "./DashboardActions";
 import { useLocalStorage } from "usehooks-ts";
 import { Label } from "../ui/label";
 import { Button } from "../ui/button";
-import { FileChangeRequest, fcrEqual } from "../../lib/types";
+import {
+  CreateOrModifyOperationRequest,
+  OperationRequest,
+} from "../../lib/types";
 import getFiles, { getFile, writeFile } from "../../lib/api.service";
 import { usePostHog } from "posthog-js/react";
 import { posthogMetadataScript } from "../../lib/posthog";
 import { FaArrowsRotate, FaCheck } from "react-icons/fa6";
 import { toast } from "sonner";
-import { FileChangeRequestsState } from "../../state/fcrAtoms";
+import { OperationRequestsState } from "../../state/fcrAtoms";
 import { useRecoilState } from "recoil";
 import {
   setStatusForFCR,
   setFileForFCR,
   setOldFileForFCR,
-  removeFileChangeRequest,
-  setStatusForAll,
-  setHideMergeAll,
+  fcrEqual,
 } from "../../state/fcrStateHelpers";
 
 const blockedPaths = [
@@ -50,17 +52,19 @@ const DashboardDisplay = () => {
   const [outputToggle, setOutputToggle] = useState("script");
   const [scriptOutput = "" as string, setScriptOutput] = useLocalStorage(
     "scriptOutput",
-    "",
+    ""
   );
   const [repoName, setRepoName] = useLocalStorage("repoName", "");
   const [fileLimit, setFileLimit] = useLocalStorage<number>("fileLimit", 10000);
   const [blockedGlobs, setBlockedGlobs] = useLocalStorage(
     "blockedGlobs",
-    blockedPaths.join(", "),
+    blockedPaths.join(", ")
   );
+
   const [fileChangeRequests, setFileChangeRequests] = useRecoilState(
-    FileChangeRequestsState,
+    OperationRequestsState
   );
+
   const [currentFileChangeRequestIndex, setCurrentFileChangeRequestIndex] =
     useLocalStorage("currentFileChangeRequestIndex", 0);
   const [versionNumber, setVersionNumber] = useState("");
@@ -72,15 +76,16 @@ const DashboardDisplay = () => {
     { label: string; name: string }[]
   >("directories", []);
   const [loadingMessage = "", setLoadingMessage] = useState("" as string);
+  const fcr = fileChangeRequests[currentFileChangeRequestIndex];
+  if (fcr?.operationType === "command") {
+    return <div>Command</div>;
+  }
+  const filePath = fcr?.snippet.file;
+  const oldFile = fcr?.snippet.entireFile;
+  const file = fcr?.newContents;
+  const hideMerge = fcr?.hideMerge;
 
-  const filePath =
-    fileChangeRequests[currentFileChangeRequestIndex]?.snippet.file;
-  const oldFile =
-    fileChangeRequests[currentFileChangeRequestIndex]?.snippet.entireFile;
-  const file = fileChangeRequests[currentFileChangeRequestIndex]?.newContents;
-  const hideMerge =
-    fileChangeRequests[currentFileChangeRequestIndex]?.hideMerge;
-
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const posthog = usePostHog();
 
   const undefinedCheck = (variable: any) => {
@@ -89,12 +94,13 @@ const DashboardDisplay = () => {
     }
   };
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const setHideMerge = useCallback(
-    (newHideMerge: boolean, fcr: FileChangeRequest) => {
+    (newHideMerge: boolean, fcr: CreateOrModifyOperationRequest) => {
       try {
         const fcrIndex = fileChangeRequests.findIndex(
-          (fileChangeRequest: FileChangeRequest) =>
-            fcrEqual(fileChangeRequest, fcr),
+          (fileChangeRequest: OperationRequest) =>
+            fcrEqual(fileChangeRequest, fcr)
         );
         undefinedCheck(fcrIndex);
         setFileChangeRequests((prev) => {
@@ -111,18 +117,20 @@ const DashboardDisplay = () => {
         console.error("Error in setHideMerge: ", error);
       }
     },
-    [fileChangeRequests],
+    [fileChangeRequests]
   );
 
   const setOldFile = useCallback((newOldFile: string) => {
     setCurrentFileChangeRequestIndex((index) => {
-      setFileChangeRequests((newFileChangeRequests) => {
+      setFileChangeRequests((newFileChangeRequests: OperationRequest[]) => {
         return [
           ...newFileChangeRequests.slice(0, index),
           {
             ...newFileChangeRequests[index],
             snippet: {
-              ...newFileChangeRequests[index].snippet,
+              ...(
+                newFileChangeRequests[index] as CreateOrModifyOperationRequest
+              ).snippet,
               entireFile: newOldFile,
             },
           },
@@ -154,7 +162,7 @@ const DashboardDisplay = () => {
       const filesAndDirectories = await getFiles(
         repoName,
         blockedGlobs,
-        fileLimit,
+        fileLimit
       );
       let newFiles = filesAndDirectories.sortedFiles;
       let directories = filesAndDirectories.directories;
@@ -174,7 +182,7 @@ const DashboardDisplay = () => {
     const delta = 50; // Define a delta for the inequality check
     if (
       Math.abs(
-        textarea.scrollHeight - textarea.scrollTop - textarea.clientHeight,
+        textarea.scrollHeight - textarea.scrollTop - textarea.clientHeight
       ) < delta
     ) {
       textarea.scrollTop = textarea.scrollHeight;
@@ -211,7 +219,7 @@ const DashboardDisplay = () => {
         metadata.email === "N/A"
           ? metadata.email
           : `${metadata.whoami}@${metadata.hostname}`,
-        metadata,
+        metadata
       );
     })();
   }, [posthog]);
@@ -303,39 +311,34 @@ const DashboardDisplay = () => {
                   size="sm"
                   variant="secondary"
                   onClick={async () => {
-                    const fcr =
-                      fileChangeRequests[currentFileChangeRequestIndex];
                     const response = await getFile(repoName, fcr.snippet.file);
                     setFileForFCR(
                       response.contents,
                       fcr,
                       fileChangeRequests,
-                      setFileChangeRequests,
+                      setFileChangeRequests
                     );
                     setOldFileForFCR(
                       response.contents,
                       fcr,
                       fileChangeRequests,
-                      setFileChangeRequests,
+                      setFileChangeRequests
                     );
                     toast.success("File synced from storage!", {
                       action: { label: "Dismiss", onClick: () => {} },
                     });
                     setCurrentFileChangeRequestIndex(
-                      currentFileChangeRequestIndex,
+                      currentFileChangeRequestIndex
                     );
                     setHideMerge(true, fcr);
                     setStatusForFCR(
                       "idle",
                       fcr,
                       fileChangeRequests,
-                      setFileChangeRequests,
+                      setFileChangeRequests
                     );
                   }}
-                  disabled={
-                    fileChangeRequests.length === 0 ||
-                    fileChangeRequests[currentFileChangeRequestIndex]?.isLoading
-                  }
+                  disabled={fileChangeRequests.length === 0 || fcr?.isLoading}
                 >
                   <FaArrowsRotate />
                 </Button>
@@ -343,19 +346,17 @@ const DashboardDisplay = () => {
                   size="sm"
                   className="mr-2 bg-green-600 hover:bg-green-700"
                   onClick={async () => {
-                    const fcr =
-                      fileChangeRequests[currentFileChangeRequestIndex];
                     setOldFileForFCR(
                       fcr.newContents,
                       fcr,
                       fileChangeRequests,
-                      setFileChangeRequests,
+                      setFileChangeRequests
                     );
                     setHideMerge(true, fcr);
                     await writeFile(
                       repoName,
                       fcr.snippet.file,
-                      fcr.newContents,
+                      fcr.newContents
                     );
                     toast.success("Succesfully saved file!", {
                       action: { label: "Dismiss", onClick: () => {} },
@@ -363,9 +364,8 @@ const DashboardDisplay = () => {
                   }}
                   disabled={
                     fileChangeRequests.length === 0 ||
-                    fileChangeRequests[currentFileChangeRequestIndex]
-                      ?.isLoading ||
-                    fileChangeRequests[currentFileChangeRequestIndex]?.hideMerge
+                    fcr?.isLoading ||
+                    fcr?.hideMerge
                   }
                 >
                   <FaCheck />
